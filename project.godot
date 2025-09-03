@@ -11,5 +11,10 @@ config_version=5
 [application]
 
 config/name="EvolutionSimulator"
+run/main_scene="res://Scenes/Main.tscn"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameConfig="*res://Scripts/Systems/GameConfig.gd"
