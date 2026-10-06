@@ -26,10 +26,17 @@ func _physics_process(delta):
 	# Get current speed based on genome
 	var speed = movement_speeds[organism.genome.speed]
 	
+	# Validate current target
+	if is_seeking_food and (detected_food == null or !is_instance_valid(detected_food)):
+		clear_food_target()
+	
 	# Move towards target or in current direction
 	var direction: Vector2
 	if is_seeking_food:
-		# Move directly toward food target
+		# Refresh target position to follow moving target
+		if detected_food != null and is_instance_valid(detected_food):
+			target_position = detected_food.position
+		# Move directly toward target
 		direction = (target_position - organism.position).normalized()
 	else:
 		# Move toward random target
@@ -50,12 +57,10 @@ func _physics_process(delta):
 	# Check if we've reached the target
 	if organism.position.distance_to(target_position) < 10:
 		if is_seeking_food:
-			# We've reached the food target, try to consume it
-			if detected_food != null and detected_food.has_method("consume"):
-				var distance_to_food = organism.position.distance_to(detected_food.position)
-				if distance_to_food < 5:  # Very close to food
-					print("Organism is very close to food, attempting consumption...")
-					# Call the organism's food detection method to handle consumption
+			# Close to target (food or prey). Reuse organism's handler for either case
+			if detected_food != null:
+				var distance_to_target = organism.position.distance_to(detected_food.position)
+				if distance_to_target < 5:
 					organism._on_food_detected(detected_food)
 		else:
 			# We've reached a random target, change direction
@@ -63,6 +68,33 @@ func _physics_process(delta):
 	
 	# Keep organism within bounds
 	keep_in_bounds()
+	
+	# Proactive detection (set target only, without replacing an existing target)
+	if organism.detection_area != null and !is_seeking_food:
+		var chosen: Node2D = null
+		# Prefer prey if cannibal
+		if organism.genome.get("cannibal", false):
+			var bodies = organism.detection_area.get_overlapping_bodies()
+			var best_d = INF
+			for b in bodies:
+				var parent = b.get_parent()
+				if parent != null and parent is Organism and parent != organism:
+					var prey: Organism = parent as Organism
+					if prey.scale.x <= organism.scale.x * 0.5:
+						var d = organism.position.distance_to(prey.position)
+						if d < best_d:
+							best_d = d
+							chosen = prey
+		# If no prey selected, look for food areas
+		if chosen == null:
+			var areas = organism.detection_area.get_overlapping_areas()
+			for a in areas:
+				var candidate = a.get_parent()
+				if candidate != null and candidate != organism and candidate.has_method("consume"):
+					chosen = candidate
+					break
+		if chosen != null:
+			set_food_target(chosen)
 
 func change_direction():
 	# Stop current movement animation

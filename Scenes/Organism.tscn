@@ -4,8 +4,9 @@
 [ext_resource type="Texture2D" uid="uid://devyka3tb08oo" path="res://Assets/Lizard_spritesheet.png" id="2_gp7t3"]
 [ext_resource type="Script" uid="uid://6f2hdvgst48o" path="res://Scripts/Organisms/OrganismAI.gd" id="3_0x0x0"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_1"]
-size = Vector2(42, 39)
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_gp7t3"]
+radius = 23.5
+height = 68.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_1"]
 radius = 200.0
@@ -201,10 +202,12 @@ scale = Vector2(2, 2)
 texture = ExtResource("2_gp7t3")
 hframes = 3
 
-[node name="CollisionBody" type="CharacterBody2D" parent="."]
+[node name="CollisionBody" type="CharacterBody2D" parent="Sprite2D"]
+scale = Vector2(0.5, 0.5)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="CollisionBody"]
-shape = SubResource("RectangleShape2D_1")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Sprite2D/CollisionBody"]
+position = Vector2(1.5, -45)
+shape = SubResource("CapsuleShape2D_gp7t3")
 
 [node name="DetectionArea" type="Area2D" parent="."]
 
@@ -234,3 +237,29 @@ offset_bottom = 64.0
 libraries = {
 &"": SubResource("AnimationLibrary_8sai2")
 }
+
+[node name="gene_tags" type="HBoxContainer" parent="."]
+offset_left = -54.0
+offset_top = -130.0
+offset_right = -14.0
+offset_bottom = -83.0
+
+[node name="cannibal" type="Label" parent="gene_tags"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0, 0, 1)
+
+[node name="metbolism" type="Label" parent="gene_tags"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3529412, 1, 0, 1)
+
+[node name="speed" type="Label" parent="gene_tags"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 1, 1)
+
+[node name="growth_rate" type="Label" parent="gene_tags"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 0, 1)
+
+[node name="color" type="Label" parent="gene_tags"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.63873315, 0.06477734, 0.99999994, 1)

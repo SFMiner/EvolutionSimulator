@@ -152,6 +152,17 @@ var config_value = GameConfig.some_value
 - **Workaround**: Use UI nodes instead of custom drawing
 - **Alternative**: Create custom font resources
 
+### **GDScript Ternary Operator**
+- **Problem**: C-style ternary `a ? b : c` is not supported.
+- **Error examples**: "Unexpected '?' in source"; "Expected end of statement after variable declaration".
+- **Correct form**:
+  ```gdscript
+  var result = value_if_true if condition else value_if_false
+  # Example replacement
+  # var r = cs != null ? cs.shape : null  # INVALID
+  var r = cs.shape if cs != null else null
+  ```
+
 ## Best Practices for 4.5
 
 1. **Use UI nodes for text** instead of custom drawing

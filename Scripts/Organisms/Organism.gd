@@ -5,7 +5,7 @@ signal organism_died(organism)
 signal organism_reproduced(organism, offspring_genome)
 
 @onready var sprite: Sprite2D = $Sprite2D
-@onready var collision_shape: CollisionShape2D = $CollisionBody/CollisionShape2D
+@onready var collision_shape: CollisionShape2D = $Sprite2D/CollisionBody/CollisionShape2D
 @onready var detection_area: Area2D = $DetectionArea
 @onready var state_machine: Node = $StateMachine
 @onready var ui: Node2D = $UI
@@ -14,6 +14,11 @@ signal organism_reproduced(organism, offspring_genome)
 @onready var ai: Node = $AI
 @onready var growth_progress_timer: Timer = $GrowthProgressTimer
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
+@onready var gene_tags: HBoxContainer = $gene_tags
+
+# Cooldown for cannibal prey seeking after reproduction
+var prey_seek_cooldown_active: bool = false
+var _prey_seek_timer: Timer
 
 var genome: Dictionary = {}
 var energy: float = 100.0
@@ -52,6 +57,12 @@ func _ready():
 	# Set initial egg frame
 	sprite.frame = 0
 	
+	# Initialize prey seek cooldown timer
+	_prey_seek_timer = Timer.new()
+	_prey_seek_timer.one_shot = true
+	add_child(_prey_seek_timer)
+	_prey_seek_timer.timeout.connect(_on_prey_seek_cooldown_timeout)
+	
 	# Initialize energy - eggs start with exactly the reproduction cost (20 energy)
 	if current_state == "egg":
 		energy = 20  # Eggs start with the energy their parent paid
@@ -69,10 +80,111 @@ func _ready():
 	
 	# Apply genome effects
 	apply_genome_effects()
+
+	# Update visible gene tags
+	update_gene_tags()
 	
 	# Set up detection area
-	detection_area.body_entered.connect(_on_food_detected)
+	detection_area.body_entered.connect(_on_detection_area_body_entered)
 	print("Organism detection area set up, waiting for food...")
+
+func _find_organism_ancestor(node: Node) -> Organism:
+	var n: Node = node
+	var depth := 0
+	while n != null and depth < 6:
+		if n is Organism:
+			return n as Organism
+		n = n.get_parent()
+		depth += 1
+	return null
+
+func _resolve_food_from_body(body: Node2D) -> Node2D:
+	# Returns the Food node if present, else null
+	if body != null and body.has_method("consume"):
+		return body
+	var p = body.get_parent() if body != null else null
+	if p != null and p.has_method("consume"):
+		return p
+	return null
+
+func _on_detection_area_body_entered(body: Node2D):
+	# If we're already seeking something valid, don't flip targets
+	if ai.has_method("is_seeking_food") and ai.is_seeking_food and ai.detected_food != null:
+		return
+	
+	# Prefer prey if cannibal and not in cooldown
+	if genome.get("cannibal", false) and !prey_seek_cooldown_active and current_state != "egg":
+		var other := _find_organism_ancestor(body)
+		if other != null and other != self and other.scale.x <= scale.x * 0.5:
+			if ai.has_method("set_food_target"):
+				ai.set_food_target(other)
+			return
+	
+	# Otherwise target food (detection-only)
+	var food_node = _resolve_food_from_body(body)
+	if food_node != null and ai.has_method("set_food_target"):
+		ai.set_food_target(food_node)
+		return
+
+# --- Utility: approximate collision radius for contact checks ---
+func _radius_from_shape(shape: Shape2D, scale_factor: float) -> float:
+	if shape == null:
+		return 8.0 * scale_factor
+	if shape is CircleShape2D:
+		return (shape as CircleShape2D).radius * scale_factor
+	elif shape is RectangleShape2D:
+		var ext = (shape as RectangleShape2D).extents
+		return max(ext.x, ext.y) * scale_factor
+	elif shape is CapsuleShape2D:
+		var cap := shape as CapsuleShape2D
+		return max(cap.radius, cap.height * 0.5) * scale_factor
+	else:
+		return 8.0 * scale_factor
+
+func _find_collision_shape_recursive(node: Node) -> CollisionShape2D:
+	if node == null:
+		return null
+	if node is CollisionShape2D:
+		return node as CollisionShape2D
+	for child in node.get_children():
+		var found = _find_collision_shape_recursive(child)
+		if found != null:
+			return found
+	return null
+
+func _get_first_collision_shape(node: Node) -> CollisionShape2D:
+	if node == null:
+		return null
+	# Common direct paths
+	if node.has_node("CollisionShape2D"):
+		return node.get_node("CollisionShape2D") as CollisionShape2D
+	if node.has_node("CollisionBody/CollisionShape2D"):
+		return node.get_node("CollisionBody/CollisionShape2D") as CollisionShape2D
+	if node.has_node("Sprite2D/CollisionBody/CollisionShape2D"):
+		return node.get_node("Sprite2D/CollisionBody/CollisionShape2D") as CollisionShape2D
+	# Fallback: recursive search through descendants
+	return _find_collision_shape_recursive(node)
+
+func _approx_collision_radius(node: Node2D) -> float:
+	if node == null:
+		return 8.0
+	var cs = _get_first_collision_shape(node)
+	var scale_factor = 1.0
+	if node is Node2D:
+		scale_factor = (node as Node2D).scale.x
+	var the_shape: Shape2D = null
+	if cs != null:
+		the_shape = cs.shape
+	return _radius_from_shape(the_shape, scale_factor)
+
+func _shapes_overlap(a: Node2D, b: Node2D) -> bool:
+	var a_cs = _get_first_collision_shape(a)
+	var b_cs = _get_first_collision_shape(b)
+	if a_cs != null and b_cs != null and a_cs.shape != null and b_cs.shape != null:
+		return a_cs.shape.collide(a_cs.get_global_transform(), b_cs.shape, b_cs.get_global_transform())
+	# Fallback to radii overlap
+	var d = a.position.distance_to(b.position)
+	return d <= (_approx_collision_radius(a) + _approx_collision_radius(b))
 
 func generate_random_genome() -> Dictionary:
 	var metabolism_options = ["low", "medium", "high"]
@@ -84,7 +196,8 @@ func generate_random_genome() -> Dictionary:
 		"metabolism": metabolism_options[randi() % metabolism_options.size()],
 		"speed": speed_options[randi() % speed_options.size()],
 		"growth_rate": growth_options[randi() % growth_options.size()],
-		"color": color_options[randi() % color_options.size()]
+		"color": color_options[randi() % color_options.size()],
+		"cannibal": randf() < 0.2
 	}
 
 func apply_genome_effects():
@@ -99,6 +212,57 @@ func apply_genome_effects():
 			color_tint = Color(0.7, 0.7, 0.7)
 	
 	sprite.modulate = color_tint
+
+func _to_level_letter(value: String) -> String:
+	match value:
+		"low", "slow":
+			return "L"
+		"medium", "normal":
+			return "M"
+		"high", "fast":
+			return "H"
+		_:
+			return ""
+
+func _color_abbrev(value: String) -> String:
+	match value:
+		"green":
+			return "Gn"
+		"brown":
+			return "B"
+		"gray":
+			return "Gy"
+		_:
+			return ""
+
+func update_gene_tags():
+	if gene_tags == null:
+		return
+
+	# Resolve labels by exact child names inside `gene_tags`
+	var metabolism_label: Label = gene_tags.get_node_or_null("metabolism") as Label
+	var speed_label: Label = gene_tags.get_node_or_null("speed") as Label
+	var growth_label: Label = gene_tags.get_node_or_null("growth_rate") as Label
+	var cannibal_label: Label = gene_tags.get_node_or_null("cannibal") as Label
+	var color_label: Label = gene_tags.get_node_or_null("color") as Label
+
+	# Map values to letters per spec
+	var metabolism_text = _to_level_letter(str(genome.get("metabolism", "medium")))
+	var speed_text = _to_level_letter(str(genome.get("speed", "medium")))
+	var growth_text = _to_level_letter(str(genome.get("growth_rate", "normal")))
+	var cannibal_text = "H" if bool(genome.get("cannibal", false)) else ""
+
+	if metabolism_label != null:
+		metabolism_label.text = metabolism_text
+	if speed_label != null:
+		speed_label.text = speed_text
+	if growth_label != null:
+		growth_label.text = growth_text
+	if cannibal_label != null:
+		cannibal_label.text = cannibal_text
+	# Color shown as Gn/B/Gy
+	if color_label != null:
+		color_label.text = _color_abbrev(str(genome.get("color", "green")))
 
 func _on_energy_timer_timeout():
 	# Eggs don't lose energy
@@ -183,7 +347,7 @@ func update_sprite():
 			sprite.frame = 1  # Use lizard frame instead of egg frame
 			# Don't stop animation here - let movement system handle it
 		"adult":
-			apply_genome_effects()
+			apply_genome_effects() 
 			scale = Vector2(1.0, 1.0)  # Full size adults
 			# Set sprite to lizard frame and prepare for movement
 			sprite.frame = 1  # Use lizard frame
@@ -191,86 +355,126 @@ func update_sprite():
 
 func _on_food_detected(body: Node2D):
 	if body.has_method("consume") and current_state != "egg":
-		# Calculate distance to food
-		var distance = position.distance_to(body.position)
+		# Calculate true/approx distance (kept for logging/compat)
+		var my_cs = _get_first_collision_shape(self)
+		var food_cs = _get_first_collision_shape(body)
+		var distance := 0.0
+		if my_cs != null and food_cs != null and my_cs.shape != null and food_cs.shape != null:
+			var overlapping: bool = my_cs.shape.collide(my_cs.get_global_transform(), food_cs.shape, food_cs.get_global_transform())
+			if overlapping:
+				distance = 0.0
+			else:
+				var center_distance = position.distance_to(body.position)
+				var my_r = _approx_collision_radius(self)
+				var food_r = _approx_collision_radius(body)
+				var contact_epsilon = 3.0
+				distance = max(0.0, center_distance - (my_r + food_r) - contact_epsilon)
+		else:
+			var center_distance = position.distance_to(body.position)
+			var my_r = _approx_collision_radius(self)
+			var food_r = _approx_collision_radius(body)
+			var contact_epsilon = 3.0
+			distance = max(0.0, center_distance - (my_r + food_r) - contact_epsilon)
 		
-		# Calculate detection probability based on distance
-		# 100% at 0 distance, 95% at 10 pixels, -0.5% per pixel after that
-		var detection_chance = max(0, 100 - (distance * 0.5))
+		# Always set target on detection (first time)
+		var already_targeting := false
+		if ai.has_method("is_seeking_food"):
+			already_targeting = ai.is_seeking_food and ai.detected_food == body
+		if !already_targeting and ai.has_method("set_food_target"):
+			ai.set_food_target(body)
 		
-		# Only attempt detection if we're not already seeking this food
-		if ai.has_method("is_seeking_food") and ai.is_seeking_food and ai.detected_food == body:
-			return  # Already seeking this food, don't re-detect
+		# Only consume when CollisionShapes actually overlap
+		if !_shapes_overlap(self, body):
+			return
 		
-		# Roll for detection
-		if randf() * 100 < detection_chance:
-			print("Organism detected food at distance: ", distance, " (", detection_chance, "% chance)")
+		# Consume
+		body.consume()
+		# Energy/growth handling remains unchanged below
+		
+		# Handle energy and growth based on state
+		if current_state == "juvenile":
+			# Growth rate affects energy gain vs growth speed
+			var energy_gain: float
+			var scale_increase: float
 			
-			# Tell AI to seek this food
-			if ai.has_method("set_food_target"):
-				ai.set_food_target(body)
+			match genome.growth_rate:
+				"slow":
+					energy_gain = 20.0
+					scale_increase = 0.1
+				"normal":
+					energy_gain = 15.0
+					scale_increase = 0.2
+				"fast":
+					energy_gain = 10.0
+					scale_increase = 0.3
+				_:
+					energy_gain = 15.0  # Default fallback
+					scale_increase = 0.2
 			
-			# Check if we're close enough to consume (when directly on top)
-			if distance < 5:  # Much smaller consumption radius
-				# Consume the food
-				body.consume()
-				
-				# Handle energy and growth based on state
-				if current_state == "juvenile":
-					# Growth rate affects energy gain vs growth speed
-					var energy_gain: float
-					var scale_increase: float
-					
-					match genome.growth_rate:
-						"slow":
-							energy_gain = 20.0
-							scale_increase = 0.1
-						"normal":
-							energy_gain = 15.0
-							scale_increase = 0.2
-						"fast":
-							energy_gain = 10.0
-							scale_increase = 0.3
-						_:
-							energy_gain = 15.0  # Default fallback
-							scale_increase = 0.2
-					
-					# Apply energy gain and growth
-					energy += energy_gain
-					energy = min(energy, max_energy)
-					
-					# Grow based on growth rate trait
-					growth_progress += scale_increase / 0.8  # Normalize to 0.8 range (0.2 to 1.0)
-					growth_progress = min(growth_progress, 1.0)
-					
-					# Update scale
-					var juvenile_scale = 0.2 + (growth_progress * 0.8)
-					scale = Vector2(juvenile_scale, juvenile_scale)
-					
-					# Check if ready to become adult
-					if growth_progress >= 1.0:
-						current_state = "adult"
-						update_sprite()
-						print("Juvenile became adult!")
-					
-					print("Juvenile ate food! Energy: ", energy, " Growth progress: ", growth_progress, " Scale: ", juvenile_scale, " (Growth rate: ", genome.growth_rate, ")")
-				else:
-					# Adults get full energy
-					energy += food_energy_value
-					energy = min(energy, max_energy)
-					print("Adult ate food! Energy: ", energy)
-				
-				# Visual feedback - briefly change color
-				var original_color = sprite.modulate
-				sprite.modulate = Color.YELLOW
-				await get_tree().create_timer(0.2).timeout
-				sprite.modulate = original_color
-				
-				# Clear food target after eating
+			# Apply energy gain and growth
+			energy += energy_gain
+			energy = min(energy, max_energy)
+			
+			# Grow based on growth rate trait
+			growth_progress += scale_increase / 0.8  # Normalize to 0.8 range (0.2 to 1.0)
+			growth_progress = min(growth_progress, 1.0)
+			
+			# Update scale
+			var juvenile_scale = 0.2 + (growth_progress * 0.8)
+			scale = Vector2(juvenile_scale, juvenile_scale)
+			
+			# Check if ready to become adult
+			if growth_progress >= 1.0:
+				current_state = "adult"
+				update_sprite()
+				print("Juvenile became adult!")
+			
+			print("Juvenile ate food! Energy: ", energy, " Growth progress: ", growth_progress, " Scale: ", juvenile_scale, " (Growth rate: ", genome.growth_rate, ")")
+		else:
+			# Adults get full energy
+			energy += food_energy_value
+			energy = min(energy, max_energy)
+			print("Adult ate food! Energy: ", energy)
+		
+		# Visual feedback - briefly change color
+		var original_color = sprite.modulate
+		sprite.modulate = Color.YELLOW
+		await get_tree().create_timer(0.2).timeout
+		sprite.modulate = original_color
+		
+		# Clear food target after eating
+		if ai.has_method("clear_food_target"):
+			ai.clear_food_target()
+		# Stop here to avoid using a freed body reference
+		return
+
+	# If the body was freed (e.g., food consumed), skip further checks
+	if !is_instance_valid(body):
+		return
+
+	# Cannibalism: detect and eat smaller organisms if trait enabled
+	if genome.get("cannibal", false) and current_state != "egg":
+		var other: Organism = null
+		if body is Organism:
+			other = body as Organism
+		else:
+			var p = body.get_parent() if body != null else null
+			if p != null and p is Organism:
+				other = p as Organism
+		
+		if other != null and other != self:
+			# Only target organisms at 50% or less of self scale
+			if other.scale.x <= scale.x * 0.5:
+				# Eat only on CollisionShape overlap
+				if !_shapes_overlap(self, other):
+					return
+				var gained = other.energy + 10.0 * other.scale.x
+				energy = min(energy + gained, max_energy)
+				other.die()
+				print("Cannibal consumed lizard! +", gained, " energy -> ", energy)
 				if ai.has_method("clear_food_target"):
 					ai.clear_food_target()
-		else:
-			print("Organism missed food at distance: ", distance, " (", detection_chance, "% chance)")
+				return
 
 func die():
 	organism_died.emit(self)
@@ -305,3 +509,15 @@ func reproduce():
 	# Deduct reproduction cost
 	energy -= reproduction_cost
 	print("Organism reproduced! Energy cost: ", reproduction_cost, ", Remaining energy: ", energy)
+	
+	# Start prey seek cooldown (only meaningful for cannibals)
+	if genome.get("cannibal", false):
+		prey_seek_cooldown_active = true
+		_prey_seek_timer.start(2.0)
+
+# Cooldown support
+func _on_prey_seek_cooldown_timeout():
+	prey_seek_cooldown_active = false
+
+func can_seek_prey() -> bool:
+	return !prey_seek_cooldown_active

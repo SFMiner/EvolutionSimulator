@@ -39,6 +39,7 @@ func _process(delta):
 			data_update_timer = 0.0
 			update_population_data()
 
+
 func _initialize_simulation():
 	# Find the environment node
 	environment = get_node("Environment")

@@ -10,6 +10,8 @@ var font: Font
 var population_history: Array[float] = []
 var max_points: int = 100
 
+# Removed time-based sampling (rolled back per request)
+
 func _ready():
 	# Get the fallback font
 	font = ThemeDB.fallback_font
@@ -37,6 +39,14 @@ func update_population(count: int):
 	if population_history.size() > max_points:
 		population_history.pop_front()
 	queue_redraw()
+
+func update_population_time(time_sec: float, count: int):
+	# Backward-compat shim; simply call update_population
+	update_population(count)
+
+func _process(delta: float) -> void:
+	# No-op after rollback; keep for future
+	pass
 
 func _draw():
 	# Get the size of this control node
@@ -74,7 +84,7 @@ func _draw():
 			var label_text = str(int(pop_value))
 			draw_string(font, Vector2(5, y_pos + 4), label_text, HORIZONTAL_ALIGNMENT_LEFT)
 
-	# Time-series population line (green)
+	# Time-series population line (green) using last max_points samples
 	if population_history.size() >= 2:
 		var points: PackedVector2Array = PackedVector2Array()
 		var step_x = content_rect.size.x / float(max(1, max_points - 1))
