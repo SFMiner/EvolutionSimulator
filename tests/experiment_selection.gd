@@ -1,0 +1,311 @@
+extends SceneTree
+## Selection experiment (NOT part of run_all_tests: too slow; filename has no test_ prefix on purpose).
+## Runs the real Main scene for several seeds per reproduction mode and prints per-allele frequency
+## trajectories plus population stats, so you can judge selection against seed-to-seed spread.
+##
+## Run (repeatable: fixed frame delta + seed):
+##   ../Godot_v4.5-stable_win64.exe --headless --fixed-fps 60 --path . --script tests/experiment_selection.gd
+## Settings via environment variables (all optional):
+##   EXP_SEEDS=1,2,3,4,5   EXP_SECONDS=600   EXP_MODES=sexual,asexual   EXP_SCALE=4 (Engine.time_scale)
+##   EXP_FOOD_INTERVAL=<s> EXP_FOOD_MAX=<n>  EXP_FOUNDERS=<n>   (override GameConfig for a variant)
+##   EXP_OUT=<file> also appends every EXP line to a file (Godot prints are very slow when piped
+##   on Windows; run with stdout to /dev/null and read the file instead).
+##   EXP_QUIET=1 hides the per-run lines.   EXP_BENCH=50,100,300 runs the frame-time benchmark instead.
+## Output lines start with "EXP" so the engine's debug prints can be filtered: ... | grep '^EXP'
+
+const CHECKPOINTS: Array[float] = [0.25, 0.5, 0.75, 1.0]
+
+var _config: Node
+var _scale: float = 4.0
+var _seconds: float = 600.0
+var _quiet: bool = false
+
+
+func _init() -> void:
+	_run()
+
+
+## Print an EXP line and, if EXP_OUT is set, append it to that file.
+func _emit(line: String) -> void:
+	print(line)
+	var path: String = OS.get_environment("EXP_OUT")
+	if path != "":
+		var file: FileAccess = FileAccess.open(path, FileAccess.READ_WRITE if FileAccess.file_exists(path) else FileAccess.WRITE)
+		if file != null:
+			file.seek_end()
+			file.store_line(line)
+			file.close()
+
+
+func _env_float(key: String, fallback: float) -> float:
+	var text: String = OS.get_environment(key)
+	return text.to_float() if text.is_valid_float() else fallback
+
+
+func _run() -> void:
+	await get_root().ready
+	_config = get_root().get_node("/root/GameConfig")
+	_scale = _env_float("EXP_SCALE", 4.0)
+	_seconds = _env_float("EXP_SECONDS", 600.0)
+	_quiet = OS.get_environment("EXP_QUIET") == "1"
+	if OS.get_environment("EXP_FOOD_INTERVAL").is_valid_float():
+		_config.food_spawn_interval = OS.get_environment("EXP_FOOD_INTERVAL").to_float()
+	if OS.get_environment("EXP_FOOD_MAX").is_valid_int():
+		_config.food_max = OS.get_environment("EXP_FOOD_MAX").to_int()
+	if OS.get_environment("EXP_FOUNDERS").is_valid_int():
+		_config.founder_count = OS.get_environment("EXP_FOUNDERS").to_int()
+	var seeds: Array[int] = []
+	var seed_text: String = OS.get_environment("EXP_SEEDS")
+	if seed_text == "":
+		seed_text = "1,2,3,4,5"
+	for token: String in seed_text.split(",", false):
+		seeds.append(token.strip_edges().to_int())
+	var modes: Array[String] = []
+	var mode_text: String = OS.get_environment("EXP_MODES")
+	if mode_text == "":
+		mode_text = "sexual,asexual"
+	for token: String in mode_text.split(",", false):
+		modes.append(token.strip_edges().to_lower())
+
+	if OS.get_environment("EXP_BENCH") != "":
+		await _bench(OS.get_environment("EXP_BENCH"))
+		quit(0)
+		return
+
+	_emit("EXP config: founders=%d food_interval=%.3f food_max=%d seconds=%.0f scale=%.1f seeds=%s fps=%d" % [
+			int(_config.founder_count), float(_config.food_spawn_interval), int(_config.food_max),
+			_seconds, _scale, str(seeds), Engine.max_fps])
+	for mode_name: String in modes:
+		var results: Array[Dictionary] = []
+		for seed_value: int in seeds:
+			var result: Dictionary = await _run_one(mode_name, seed_value)
+			results.append(result)
+			if not _quiet:
+				_emit("EXP run mode=%s seed=%d pop_end=%d pop_min=%d pop_mean2=%.1f pop_max=%d extinct_at=%.1f counter_drift_max=%d births=%s maxgen=%d digest=%d wall=%.1fs" % [
+						mode_name, seed_value, int(result["pop_end"]), int(result["pop_min"]), float(result["pop_mean2"]),
+						int(result["pop_max"]), float(result["extinct_at"]), int(result["max_drift"]), str(result["births"]),
+						int(result["max_gen"]), int(result["digest"]), float(result["wall"])])
+		_report(mode_name, results)
+	Engine.time_scale = 1.0
+	quit(0)
+
+
+## One seeded run. Returns frequencies at start and each checkpoint plus population stats.
+func _run_one(mode_name: String, seed_value: int) -> Dictionary:
+	OS.set_environment("EVO_SEED", str(seed_value))
+	OS.set_environment("EVO_MODE", mode_name)
+	_config.reproduction_mode = 1 if mode_name == "asexual" else 0
+	var main: Node = (load("res://Scenes/Main.tscn") as PackedScene).instantiate()
+	get_root().add_child(main)
+	Engine.time_scale = 1.0
+	await process_frame
+	await process_frame
+	Engine.time_scale = _scale
+	var started_ms: int = Time.get_ticks_msec()
+	var traj: Array[Dictionary] = []  # index 0 = start, then one entry per checkpoint
+	traj.append(_freqs(main.get_live_genotypes()))
+	var next_cp: int = 0
+	var pops: Array[int] = []
+	var next_second: float = 1.0
+	var extinct_at: float = -1.0
+	var max_drift: int = 0
+	while next_cp < CHECKPOINTS.size():
+		await process_frame
+		var t: float = float(main.simulation_time)
+		while t >= next_second:
+			pops.append(_alive(main))
+			max_drift = maxi(max_drift, absi(int(main.population_count) - pops[pops.size() - 1]))
+			next_second += 1.0
+		if t >= CHECKPOINTS[next_cp] * _seconds:
+			traj.append(_freqs(main.get_live_genotypes()))
+			next_cp += 1
+		if _alive(main) <= 0:
+			extinct_at = t
+			# fill the rest of the trajectory with the empty population so rows stay aligned
+			while next_cp < CHECKPOINTS.size():
+				traj.append(_freqs([] as Array[Dictionary]))
+				next_cp += 1
+	Engine.time_scale = 1.0
+	var pop_end: int = _alive(main)
+	var live: Array[Dictionary] = main.get_live_genotypes()
+	var half: int = pops.size() / 2
+	var sum2: float = 0.0
+	var min2: int = 1000000
+	var max2: int = 0
+	for i: int in range(half, pops.size()):
+		sum2 += float(pops[i])
+		min2 = mini(min2, pops[i])
+		max2 = maxi(max2, pops[i])
+	var result: Dictionary = {
+		"traj": traj,
+		"pop_end": pop_end,
+		"pop_min": min2 if pops.size() > half else 0,
+		"pop_max": max2,
+		"pop_mean2": sum2 / maxf(1.0, float(pops.size() - half)),
+		"extinct_at": extinct_at,
+		"max_drift": max_drift,
+		"births": main.births.duplicate(),
+		"max_gen": int(main.current_generation),
+		"digest": _digest(main, live),
+		"wall": float(Time.get_ticks_msec() - started_ms) / 1000.0,
+		"pops": pops,
+	}
+	main.queue_free()
+	await process_frame
+	await process_frame
+	return result
+
+
+## Real number of living organisms. SimulationManager.population_count can drift (die() can run twice).
+func _alive(main: Node) -> int:
+	return (main.get_live_genotypes() as Array).size()
+
+
+func _freqs(genotypes: Array[Dictionary]) -> Dictionary:
+	var out: Dictionary = {}
+	for id: String in EvoGenetics.LOCUS_IDS:
+		out[id] = EvoGenetics.allele_frequencies(genotypes, id)
+	return out
+
+
+## Hash of the final state (pop, genotypes, positions, energies): equal digests = identical runs.
+func _digest(main: Node, live: Array[Dictionary]) -> int:
+	var parts: PackedStringArray = PackedStringArray()
+	parts.append(str(live.size()))
+	parts.append(str(main.births))
+	var container: Node = main.organism_container
+	for child: Node in container.get_children():
+		var org: Node2D = child as Node2D
+		if org != null:
+			parts.append("%s|%.2f|%.2f|%.2f" % [str(org.get("genotype")), org.position.x, org.position.y, float(org.get("energy"))])
+	return hash("\n".join(parts))
+
+
+func _allele_list(locus_id: String) -> Array[String]:
+	var out: Array[String] = []
+	for allele: String in EvoGenetics.get_library().get_locus(locus_id).alleles:
+		out.append(allele)
+	return out
+
+
+func _report(mode_name: String, all_results: Array[Dictionary]) -> void:
+	var results: Array[Dictionary] = all_results
+	var n: int = results.size()
+	var ends: Array[float] = []
+	var mean_pop2: Array[float] = []
+	var extinctions: int = 0
+	for r: Dictionary in results:
+		ends.append(float(r["pop_end"]))
+		mean_pop2.append(float(r["pop_mean2"]))
+		if float(r["extinct_at"]) >= 0.0:
+			extinctions += 1
+	_emit("EXP == %s: %d seeds, extinctions=%d, pop_end mean=%.1f (min %d max %d), pop mean over 2nd half mean=%.1f" % [
+			mode_name, n, extinctions, _mean(ends), int(ArrayMin(ends)), int(ArrayMax(ends)), _mean(mean_pop2)])
+	var survivors: Array[Dictionary] = []
+	for r: Dictionary in all_results:
+		if float(r["extinct_at"]) < 0.0:
+			survivors.append(r)
+	results = survivors
+	_emit("EXP allele freq (surviving runs only, n=%d): start  25%%   50%%   75%%   end | sd_end | per-seed end" % survivors.size())
+	for id: String in EvoGenetics.LOCUS_IDS:
+		for allele: String in _allele_list(id):
+			var cols: PackedStringArray = PackedStringArray()
+			for step: int in range(CHECKPOINTS.size() + 1):
+				var vals: Array[float] = []
+				for r: Dictionary in results:
+					var traj: Array = r["traj"]
+					vals.append(float((traj[step] as Dictionary)[id][allele]))
+				cols.append("%.3f" % _mean(vals))
+			var end_vals: Array[float] = []
+			var seed_cols: PackedStringArray = PackedStringArray()
+			for r: Dictionary in results:
+				var traj: Array = r["traj"]
+				var v: float = float((traj[CHECKPOINTS.size()] as Dictionary)[id][allele])
+				end_vals.append(v)
+				seed_cols.append("%.2f" % v)
+			_emit("EXP   %-11s %-2s  %s | %.3f | %s" % [id, allele, "  ".join(cols), _sd(end_vals), " ".join(seed_cols)])
+
+
+func _mean(values: Array[float]) -> float:
+	if values.is_empty():
+		return 0.0
+	var s: float = 0.0
+	for v: float in values:
+		s += v
+	return s / float(values.size())
+
+
+func _sd(values: Array[float]) -> float:
+	if values.size() < 2:
+		return 0.0
+	var m: float = _mean(values)
+	var s: float = 0.0
+	for v: float in values:
+		s += (v - m) * (v - m)
+	return sqrt(s / float(values.size() - 1))
+
+
+func ArrayMin(values: Array[float]) -> float:
+	var m: float = INF
+	for v: float in values:
+		m = minf(m, v)
+	return m
+
+
+func ArrayMax(values: Array[float]) -> float:
+	var m: float = -INF
+	for v: float in values:
+		m = maxf(m, v)
+	return m
+
+
+# === FRAME-TIME BENCHMARK (EXP_BENCH=50,100,300) ===
+## Spawns extra founders up to each target and averages frame time over a window while the
+## population is still stable (founders start as eggs and take ~50 s to starve).
+func _bench(sizes_text: String) -> void:
+	for token: String in sizes_text.split(",", false):
+		var target: int = token.strip_edges().to_int()
+		OS.set_environment("EVO_SEED", "7")
+		OS.set_environment("EVO_MODE", "sexual")
+		_config.reproduction_mode = 0
+		_config.founder_count = target
+		var main: Node = (load("res://Scenes/Main.tscn") as PackedScene).instantiate()
+		get_root().add_child(main)
+		Engine.time_scale = 1.0
+		# warm-up: let eggs hatch so the AI and detection run
+		while float(main.simulation_time) < 12.0:
+			await process_frame
+		var frames: int = 0
+		var wall_us: int = 0
+		var pop_sum: int = 0
+		var food_sum: int = 0
+		while float(main.simulation_time) < 27.0:
+			var t0: int = Time.get_ticks_usec()
+			await process_frame
+			wall_us += Time.get_ticks_usec() - t0
+			pop_sum += _alive(main)
+			food_sum += main.environment.get_node("FoodContainer").get_child_count()
+			frames += 1
+		var fn: float = float(frames)
+		_emit("EXP bench target=%d avg_pop=%.0f avg_food=%.0f frames=%d ms/frame=%.2f (physics + process + timers, headless: no rendering)" % [
+				target, float(pop_sum) / fn, float(food_sum) / fn, frames, float(wall_us) / 1000.0 / fn])
+		# micro-benchmark: the O(N) group scan in find_mate and the AI's overlap query
+		var orgs: Array[Node] = main.organism_container.get_children()
+		var t1: int = Time.get_ticks_usec()
+		var reps: int = 0
+		for node: Node in orgs:
+			node.find_mate()
+			reps += 1
+		var find_mate_us: float = float(Time.get_ticks_usec() - t1) / float(maxi(1, reps))
+		var t2: int = Time.get_ticks_usec()
+		var q: int = 0
+		for node: Node in orgs:
+			var area: Area2D = node.detection_area
+			area.get_overlapping_areas()
+			q += 1
+		var overlap_us: float = float(Time.get_ticks_usec() - t2) / float(maxi(1, q))
+		_emit("EXP bench target=%d  find_mate=%.1f us/call (all %d organisms = %.2f ms)  get_overlapping_areas=%.1f us/call (all = %.2f ms)" % [
+				target, find_mate_us, reps, find_mate_us * float(reps) / 1000.0, overlap_us, overlap_us * float(q) / 1000.0])
+		main.queue_free()
+		await process_frame
+		await process_frame

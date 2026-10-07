@@ -3,11 +3,7 @@ extends Node
 @onready var organism: Organism = get_parent()
 @onready var sprite: Sprite2D = organism.get_node("Sprite2D")
 
-var movement_speeds = {
-	"slow": 20,
-	"medium": 40,
-	"fast": 60
-}
+var movement_speeds = GameConfig.movement_speeds
 
 var current_direction: Vector2 = Vector2.ZERO
 var target_position: Vector2 = Vector2.ZERO

@@ -32,23 +32,15 @@ var current_state: String = "egg"
 var generation: int = 1
 var growth_progress: float = 0.0  # 0.0 to 1.0 for gradual growth during juvenile phase
 
-# Hardcoded values for now
-var energy_depletion_rates = {
-	"low": 1.0,
-	"medium": 2.0,
-	"high": 3.0
-}
+# Tables and ecology numbers come from GameConfig (single source of truth)
+var energy_depletion_rates = GameConfig.energy_depletion_rates
 
-var growth_timers = {
-	"slow": 10.0,
-	"normal": 7.0,
-	"fast": 4.0
-}
+var growth_timers = GameConfig.growth_timers
 
-var reproduction_energy = 80
+var reproduction_energy = GameConfig.reproduction_energy
 var reproduction_cost: float = GameConfig.egg_cost  # Energy cost to reproduce (egg)
-var max_energy = 100
-var food_energy_value = 30
+var max_energy = GameConfig.max_energy
+var food_energy_value = GameConfig.food_energy_value
 
 func _ready():
 	print("Organism _ready() called at position: ", position)
@@ -434,15 +426,17 @@ func _on_food_detected(body: Node2D):
 			energy = min(energy, max_energy)
 			print("Adult ate food! Energy: ", energy)
 		
-		# Visual feedback - briefly change color
-		var original_color = sprite.modulate
-		sprite.modulate = Color.YELLOW
-		await get_tree().create_timer(0.2).timeout
-		sprite.modulate = original_color
-		
 		# Clear food target after eating
 		if ai.has_method("clear_food_target"):
 			ai.clear_food_target()
+
+		# Visual feedback - briefly change color. A tween owned by this node dies with it; an awaited
+		# SceneTreeTimer resumed on freed organisms and segfaulted Godot at quit.
+		var original_color = sprite.modulate
+		sprite.modulate = Color.YELLOW
+		var flash: Tween = create_tween()
+		flash.tween_interval(0.2)
+		flash.tween_callback(func() -> void: sprite.modulate = original_color)
 		# Stop here to avoid using a freed body reference
 		return
 
@@ -475,6 +469,10 @@ func _on_food_detected(body: Node2D):
 				return
 
 func die():
+	# Guard: a cannibal's kill and a starvation tick can both call die() in one frame, which
+	# emitted organism_died twice and made SimulationManager.population_count undercount.
+	if is_queued_for_deletion():
+		return
 	organism_died.emit(self)
 	queue_free()
 

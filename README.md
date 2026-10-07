@@ -21,7 +21,7 @@ This simulator creates a sandbox environment where organisms (lizards) hatch, gr
 - **Metabolism**: Affects energy depletion rate (low/medium/high)
 - **Speed**: Affects movement speed (slow/medium/fast)
 - **Growth Rate**: Affects time to reach adulthood (slow/normal/fast)
-- **Color**: Visual trait that affects camouflage (green/brown/gray)
+- **Color**: Visual trait only (green/brown/gray); nothing in the simulation reacts to it yet
 
 ### User Interface
 - **Population Counter**: Shows current number of organisms
@@ -109,9 +109,9 @@ evolution-simulator/
 - Mutation: 5% per allele per gamete (or per clone copy), adjustable 0-20% in the UI
 
 ### Food System
-- Green food items spawn every 2 seconds
+- Green food items spawn every 0.35 seconds (`GameConfig.food_spawn_interval`), capped at 150 alive (`food_max`)
 - Random positions within the environment
-- Organisms detect food within 32-pixel radius
+- Organisms detect food within a 200-pixel radius (scaled by their size)
 - Organisms move toward detected food
 - Food disappears when consumed
 
@@ -150,8 +150,21 @@ evolution-simulator/
 - [x] Allele-frequency graph with locus selector, genotype counts and birth stats
 - [x] Tests in `tests/` (genetics, reproduction hooks, sim smoke) and `tests/run_all_tests.sh`
 - [x] Screenshot gate `EVO_SHOT`
+- [x] Ecology tuned for selection: 24 founders, food 0.35 s / cap 150, ecology numbers centralized in `GameConfig`; population settles ~70-80 in both modes, no extinctions in 10 seeds x 10 min
+- [x] `tests/experiment_selection.gd`: seeded multi-run allele-frequency experiment + frame-time benchmark (see CLAUDE.md)
+- [x] `Organism.die()` guard against double death (population counter was undercounting)
+- [ ] Color has no effect on survival (pure drift); needs a mechanic (e.g. camouflage vs predator) to be selectable - proposal only
 - [ ] Mate-seeking movement (out of scope by design)
 - [ ] Speed-up control in the UI (only pause exists; the gate uses `Engine.time_scale`)
+
+### Selection pressures (measured: 10 seeds x 600 sim-s, per mode; see CLAUDE.md for how to rerun)
+| Trait | Cost / benefit in the code | Result |
+|---|---|---|
+| Metabolism | high drains 3/s vs low 1/s; high gains nothing | `m` 0.51 -> 0.97-0.98, every seed (strong) |
+| Speed | fast 60 px/s vs slow 20; no cost | `S` 0.51 -> 0.95, every seed (strong) |
+| Growth rate | fast hatches in 4 s and needs 3 meals; slow gets 2x juvenile energy per meal but needs 8 | indistinguishable from drift |
+| Color | tint only, affects nothing | drift (sd across seeds ~0.15) |
+| Cannibal | eats organisms <= half its size for their energy; no cost | no signal with plentiful food; weak `k` rise under scarce food (~2-3 sd) |
 
 ### 🔄 Next Steps (Phase 2)
 - Camera controls for observation (pan/zoom)
@@ -178,8 +191,10 @@ var energy_depletion_rates = {
     "high": 3.0
 }
 
-var food_spawn_interval = 2.0
-var max_organisms = 50
+var founder_count = 24
+var food_spawn_interval = 0.35
+var food_max = 150
+var food_initial = 5
 var reproduction_energy = 80
 var reproduction_mode = ReproductionMode.SEXUAL  # or ASEXUAL
 var mutation_rate = 0.05

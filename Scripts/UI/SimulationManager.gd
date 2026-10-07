@@ -87,8 +87,8 @@ func _initialize_simulation():
 	update_ui()
 
 func spawn_initial_organisms():
-	# Spawn 5 organisms to start
-	for i in range(5):
+	# Spawn the founder batch (GameConfig.founder_count)
+	for i in range(GameConfig.founder_count):
 		spawn_organism()
 
 func spawn_organism():

@@ -19,7 +19,14 @@ var growth_timers = {
 	"fast": 4.0
 }
 
-var food_spawn_interval = 2.0
+# === ECOLOGY (tuned so selection is visible; see CLAUDE.md "Ecology tuning") ===
+## Organisms spawned at start (and the size of one "founder" batch).
+var founder_count: int = 24
+## Seconds between food spawns, and the hard cap on food items alive at once.
+var food_spawn_interval: float = 0.35
+var food_max: int = 150
+## Food items placed at the start.
+var food_initial: int = 5
 var max_organisms = 50
 var reproduction_energy = 80
 var max_energy = 100
