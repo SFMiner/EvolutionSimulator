@@ -5,6 +5,10 @@ var environment: Node2D
 @onready var pause_button: Button = $UI/ControlPanel/VBoxContainer/PauseButton
 @onready var population_label: Label = $UI/ControlPanel/VBoxContainer/PopulationLabel
 @onready var generation_label: Label = $UI/ControlPanel/VBoxContainer/GenerationLabel
+@onready var mode_option: OptionButton = $UI/ControlPanel/VBoxContainer/ModeOption
+@onready var mutation_label: Label = $UI/ControlPanel/VBoxContainer/MutationLabel
+@onready var mutation_slider: HSlider = $UI/ControlPanel/VBoxContainer/MutationSlider
+@onready var allele_graph: Control = $UI/AlleleGraph
 
 var organism_container: Node2D
 var population_graph: Control
@@ -21,10 +25,24 @@ var simulation_time: float = 0.0
 var data_update_timer: float = 0.0
 var data_update_interval: float = 1.0  # Update data every second
 
+# Genetics v2: the one RNG for all genetics calls (seedable via EVO_SEED)
+var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+# Births by kind, for the stats panel
+var births: Dictionary = {"mating": 0, "self": 0, "clone": 0}
+var extinct_at: float = -1.0
+
+# Screenshot gate (EVO_SHOT=<png>, optional EVO_MODE, EVO_SECONDS, EVO_SEED)
+var _shot_path: String = ""
+var _shot_seconds: float = 90.0
+var _shot_pending: bool = false
+
 func _ready():
+	_read_env_settings()
+	
 	# Connect button signals
 	spawn_button.pressed.connect(_on_spawn_button_pressed)
 	pause_button.pressed.connect(_on_pause_button_pressed)
+	_setup_genetics_controls()
 	
 	# Defer the initialization to ensure all nodes are ready
 	call_deferred("_initialize_simulation")
@@ -38,6 +56,10 @@ func _process(delta):
 		if data_update_timer >= data_update_interval:
 			data_update_timer = 0.0
 			update_population_data()
+		
+		if _shot_path != "" and !_shot_pending and simulation_time >= _shot_seconds:
+			_shot_pending = true
+			_save_screenshot_and_quit()
 
 
 func _initialize_simulation():
@@ -78,6 +100,8 @@ func spawn_organism():
 			return
 	
 	var organism = organism_scene.instantiate()
+	organism.rng = rng
+	organism.genotype = EvoGenetics.random_founder(rng)
 	organism_container.add_child(organism)
 	
 	# Random position
@@ -108,12 +132,17 @@ func _on_pause_button_pressed():
 func _on_organism_died(organism: Organism):
 	population_count -= 1
 	print("Organism died. Population: ", population_count)
+	if population_count <= 0 and extinct_at < 0.0:
+		extinct_at = simulation_time
+		print("EXTINCTION at t=", snappedf(simulation_time, 0.1), "s")
 	update_ui()
 
-func _on_organism_reproduced(organism: Organism, offspring_genome: Dictionary):
-	# Create offspring
+func _on_organism_reproduced(organism: Organism, offspring_genotype: Dictionary, kind: String):
+	# Create offspring; `genome` (phenotype) is derived from the genotype in Organism._ready
+	births[kind] = int(births.get(kind, 0)) + 1
 	var offspring = organism_scene.instantiate()
-	offspring.genome = offspring_genome
+	offspring.rng = rng
+	offspring.genotype = offspring_genotype
 	offspring.generation = organism.generation + 1
 	offspring.position = organism.position + Vector2(randf_range(-20, 20), randf_range(-20, 20))
 	
@@ -147,6 +176,8 @@ func update_ui():
 	# Update the population graph
 	if population_graph != null:
 		population_graph.update_population(population_count)
+	if allele_graph != null:
+		allele_graph.set_births(births)
 	
 	# Debug: Print discrepancy if any
 	if population_count != actual_count:
@@ -157,12 +188,6 @@ func update_population_data():
 	population_history.append(float(population_count))
 	time_points.append(simulation_time)
 	
-	# Debug: Print population data occasionally
-	if randf() < 0.1:  # 10% chance each update
-		print("Data update - Population: ", population_count, " History size: ", population_history.size(), " Time: ", simulation_time)
-		if population_history.size() > 1:
-			print("  Population change: ", population_history[-2], " -> ", population_history[-1])
-	
 	# Keep only last 100 data points to prevent memory issues
 	if population_history.size() > 100:
 		population_history.pop_front()
@@ -171,5 +196,76 @@ func update_population_data():
 	# Update the population graph
 	if population_graph != null:
 		population_graph.update_population(population_count)
+	
+	# Allele frequencies, sampled on the same interval as the population graph
+	if allele_graph != null:
+		allele_graph.sample(get_live_genotypes())
+		allele_graph.set_births(births)
 
 # Drawing is now handled by the PopulationGraph node
+
+
+# === GENETICS V2 ===
+
+## Genotypes of every living organism (eggs included).
+func get_live_genotypes() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if organism_container == null:
+		return out
+	for child: Node in organism_container.get_children():
+		var org: Organism = child as Organism
+		if org != null and !org.is_queued_for_deletion():
+			out.append(org.genotype)
+	return out
+
+func _read_env_settings() -> void:
+	var seed_text: String = OS.get_environment("EVO_SEED")
+	if seed_text.is_valid_int():
+		rng.seed = seed_text.to_int()
+		seed(seed_text.to_int())  # movement/AI randomness too, for repeatable runs
+	else:
+		rng.randomize()
+	var mode_text: String = OS.get_environment("EVO_MODE").to_lower()
+	if mode_text == "asexual":
+		GameConfig.reproduction_mode = GameConfig.ReproductionMode.ASEXUAL
+	elif mode_text == "sexual":
+		GameConfig.reproduction_mode = GameConfig.ReproductionMode.SEXUAL
+	_shot_path = OS.get_environment("EVO_SHOT")
+	if _shot_path != "":
+		var secs: String = OS.get_environment("EVO_SECONDS")
+		if secs.is_valid_float():
+			_shot_seconds = secs.to_float()
+		# Fast-forward through the engine clock so timers, AI and graphs all keep pace
+		Engine.time_scale = 4.0
+
+func _setup_genetics_controls() -> void:
+	mode_option.clear()
+	mode_option.add_item("Sexual (mating)", GameConfig.ReproductionMode.SEXUAL)
+	mode_option.add_item("Asexual (clones)", GameConfig.ReproductionMode.ASEXUAL)
+	mode_option.select(mode_option.get_item_index(GameConfig.reproduction_mode))
+	mode_option.item_selected.connect(_on_mode_selected)
+	mutation_slider.min_value = 0.0
+	mutation_slider.max_value = 0.2
+	mutation_slider.step = 0.005
+	mutation_slider.value = GameConfig.mutation_rate
+	mutation_slider.value_changed.connect(_on_mutation_changed)
+	_update_mutation_label()
+
+func _on_mode_selected(index: int) -> void:
+	# Applies to future births only
+	GameConfig.reproduction_mode = mode_option.get_item_id(index) as GameConfig.ReproductionMode
+
+func _on_mutation_changed(value: float) -> void:
+	GameConfig.mutation_rate = value
+	_update_mutation_label()
+
+func _update_mutation_label() -> void:
+	mutation_label.text = "Mutation: %d%%" % int(round(GameConfig.mutation_rate * 100.0))
+
+func _save_screenshot_and_quit() -> void:
+	await RenderingServer.frame_post_draw
+	var img: Image = get_viewport().get_texture().get_image()
+	var err: int = img.save_png(_shot_path)
+	print("EVO_SHOT saved ", _shot_path, " err=", err, " t=", snappedf(simulation_time, 0.1),
+			" pop=", population_count, " births=", births)
+	get_tree().quit(0 if err == OK else 1)

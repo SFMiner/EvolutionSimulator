@@ -11,9 +11,9 @@ This simulator creates a sandbox environment where organisms (lizards) hatch, gr
 ### Core Systems (Phase 1 - Complete)
 - **Organism Lifecycle**: Egg → Juvenile → Adult → Death with visual scaling
 - **Energy System**: Organisms lose energy over time and gain energy by eating food
-- **Genetics & Mutation**: 4 inheritable traits with random mutations
+- **Genetics & Mutation**: diploid genes (allele pairs with dominance) via the Genome Engine, plus mutation
 - **Food System**: Food spawns periodically and can be consumed by organisms
-- **Reproduction**: Adult organisms with sufficient energy can reproduce asexually (20 energy cost)
+- **Reproduction**: Adults with enough energy reproduce by proximity mating (default) or by cloning (20 energy egg cost)
 - **Population Tracking**: Real-time population and generation counters
 - **Visual Animation System**: Spritesheet-based animations with directional movement
 
@@ -103,9 +103,10 @@ evolution-simulator/
 ### Reproduction
 - Adults with 80+ energy can reproduce
 - Reproduction costs 20 energy points
-- Creates 1 offspring with inherited traits
-- 10% chance of mutation per trait
-- Parent's energy is reduced by 20 after reproduction
+- Sexual (default): the nearest other ready adult within 90 px is the mate; the offspring is a cross of both parents' genes. The initiator pays 20 energy, the partner 5.
+- No mate nearby: keep the energy and retry; after 20 s of waiting the organism self-fertilizes.
+- Asexual (toggle): a clone of the parent, with mutation.
+- Mutation: 5% per allele per gamete (or per clone copy), adjustable 0-20% in the UI
 
 ### Food System
 - Green food items spawn every 2 seconds
@@ -138,6 +139,20 @@ evolution-simulator/
 ✅ **Trait inheritance**: Offspring inherit parent traits with 10% mutation chance per trait
 ✅ **Population dynamics**: Population fluctuates based on food availability and organism survival
 
+### Genetics v2 (spec: `Docs/Genetics v2 - Diploid + Mating.md`)
+- [x] Genome Engine vendored in `addons/genome/` (never edit; re-sync with `tools/sync_genome.sh`)
+- [x] `EvoGenetics`: 5 loci (metabolism, speed, growth_rate, color, cannibal) with dominance
+- [x] `organism.genotype` (diploid) with `organism.genome` kept as the expressed phenotype
+- [x] Founder cannibal rate matched to the old 20% (p_k = sqrt(0.2)); color split matched to thirds
+- [x] Proximity mating, self-fertilization fallback, cloning toggle
+- [x] One seedable RNG in SimulationManager (`EVO_SEED`); single `GameConfig.mutation_rate`
+- [x] Reproduction-mode toggle and mutation slider (0-0.2)
+- [x] Allele-frequency graph with locus selector, genotype counts and birth stats
+- [x] Tests in `tests/` (genetics, reproduction hooks, sim smoke) and `tests/run_all_tests.sh`
+- [x] Screenshot gate `EVO_SHOT`
+- [ ] Mate-seeking movement (out of scope by design)
+- [ ] Speed-up control in the UI (only pause exists; the gate uses `Engine.time_scale`)
+
 ### 🔄 Next Steps (Phase 2)
 - Camera controls for observation (pan/zoom)
 - Data visualization (population graphs)
@@ -166,7 +181,9 @@ var energy_depletion_rates = {
 var food_spawn_interval = 2.0
 var max_organisms = 50
 var reproduction_energy = 80
-var mutation_chance = 0.1
+var reproduction_mode = ReproductionMode.SEXUAL  # or ASEXUAL
+var mutation_rate = 0.05
+var mate_radius = 90.0
 ```
 
 ## Testing

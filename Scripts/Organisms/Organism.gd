@@ -2,7 +2,8 @@ extends Node2D
 class_name Organism
 
 signal organism_died(organism)
-signal organism_reproduced(organism, offspring_genome)
+## kind is "mating", "self" or "clone"; offspring_genotype is engine-shape {locus: [a, b]}.
+signal organism_reproduced(organism, offspring_genotype, kind)
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var collision_shape: CollisionShape2D = $Sprite2D/CollisionBody/CollisionShape2D
@@ -20,7 +21,12 @@ signal organism_reproduced(organism, offspring_genome)
 var prey_seek_cooldown_active: bool = false
 var _prey_seek_timer: Timer
 
+## Diploid genes (source of truth, inherited). `genome` below is the expressed phenotype.
+var genotype: Dictionary = {}
 var genome: Dictionary = {}
+## Set by SimulationManager (the one seedable RNG); fallback is made lazily.
+var rng: RandomNumberGenerator = null
+var _mate_wait: float = 0.0  # seconds spent ready with no partner in range
 var energy: float = 100.0
 var current_state: String = "egg"
 var generation: int = 1
@@ -40,16 +46,20 @@ var growth_timers = {
 }
 
 var reproduction_energy = 80
-var reproduction_cost = 20  # Energy cost to reproduce
+var reproduction_cost: float = GameConfig.egg_cost  # Energy cost to reproduce (egg)
 var max_energy = 100
-var mutation_chance = 0.1
 var food_energy_value = 30
 
 func _ready():
 	print("Organism _ready() called at position: ", position)
-	# Initialize genome if not set
-	if genome.is_empty():
-		genome = generate_random_genome()
+	add_to_group("organisms")
+	# Initialize genotype if not set, then derive the expressed genome (phenotype) from it
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.randomize()
+	if genotype.is_empty():
+		genotype = EvoGenetics.random_founder(rng)
+	genome = EvoGenetics.to_genome(genotype)
 	
 	# Set initial scale for egg
 	scale = Vector2(0.2, 0.2)
@@ -186,20 +196,6 @@ func _shapes_overlap(a: Node2D, b: Node2D) -> bool:
 	var d = a.position.distance_to(b.position)
 	return d <= (_approx_collision_radius(a) + _approx_collision_radius(b))
 
-func generate_random_genome() -> Dictionary:
-	var metabolism_options = ["low", "medium", "high"]
-	var speed_options = ["slow", "medium", "fast"]
-	var growth_options = ["slow", "normal", "fast"]
-	var color_options = ["green", "brown", "gray"]
-	
-	return {
-		"metabolism": metabolism_options[randi() % metabolism_options.size()],
-		"speed": speed_options[randi() % speed_options.size()],
-		"growth_rate": growth_options[randi() % growth_options.size()],
-		"color": color_options[randi() % color_options.size()],
-		"cannibal": randf() < 0.2
-	}
-
 func apply_genome_effects():
 	# Apply color tint
 	var color_tint = Color.WHITE
@@ -288,6 +284,8 @@ func _on_energy_timer_timeout():
 	# Check for reproduction
 	if energy >= reproduction_energy and current_state == "adult":
 		reproduce()
+	else:
+		_mate_wait = 0.0
 
 func _on_growth_timer_timeout():
 	# Only eggs hatch automatically - juveniles grow by eating
@@ -480,40 +478,71 @@ func die():
 	organism_died.emit(self)
 	queue_free()
 
-func reproduce():
-	# Check if we have enough energy to reproduce
-	if energy < reproduction_cost:
-		return
-	
-	# Create offspring genome with potential mutations
-	var offspring_genome = genome.duplicate()
-	
-	# Apply mutations to each trait
-	var metabolism_options = ["low", "medium", "high"]
-	var speed_options = ["slow", "medium", "fast"]
-	var growth_options = ["slow", "normal", "fast"]
-	var color_options = ["green", "brown", "gray"]
-	
-	if randf() < mutation_chance:
-		offspring_genome["metabolism"] = metabolism_options[randi() % metabolism_options.size()]
-	if randf() < mutation_chance:
-		offspring_genome["speed"] = speed_options[randi() % speed_options.size()]
-	if randf() < mutation_chance:
-		offspring_genome["growth_rate"] = growth_options[randi() % growth_options.size()]
-	if randf() < mutation_chance:
-		offspring_genome["color"] = color_options[randi() % color_options.size()]
-	
-	# Emit reproduction signal
-	organism_reproduced.emit(self, offspring_genome)
-	
-	# Deduct reproduction cost
-	energy -= reproduction_cost
-	print("Organism reproduced! Energy cost: ", reproduction_cost, ", Remaining energy: ", energy)
-	
+func is_ready_to_mate() -> bool:
+	return current_state == "adult" and energy >= reproduction_energy and !is_queued_for_deletion()
+
+## Nearest other ready adult within GameConfig.mate_radius, or null.
+func find_mate() -> Organism:
+	var best: Organism = null
+	var best_d: float = GameConfig.mate_radius
+	for node: Node in get_tree().get_nodes_in_group("organisms"):
+		var other: Organism = node as Organism
+		if other == null or other == self or !other.is_ready_to_mate():
+			continue
+		var d: float = position.distance_to(other.position)
+		if d <= best_d:
+			best_d = d
+			best = other
+	return best
+
+## Called on the partner after a mating: small energy cost plus the same cooldown as the initiator.
+func pay_mating_cost() -> void:
+	energy -= GameConfig.partner_cost
+	_start_reproduction_cooldown()
+	_mate_wait = 0.0
+
+func _start_reproduction_cooldown() -> void:
 	# Start prey seek cooldown (only meaningful for cannibals)
 	if genome.get("cannibal", false):
 		prey_seek_cooldown_active = true
 		_prey_seek_timer.start(2.0)
+
+func reproduce() -> void:
+	# Check if we have enough energy to reproduce
+	if energy < reproduction_cost:
+		return
+	
+	var lib: GenomeLibrary = EvoGenetics.get_library()
+	var rate: float = GameConfig.mutation_rate
+	var offspring_genotype: Dictionary = {}
+	var kind: String = "clone"
+	
+	if GameConfig.reproduction_mode == GameConfig.ReproductionMode.ASEXUAL:
+		offspring_genotype = Genome.clone_with_mutation(lib, genotype, rng, rate)
+	else:
+		var mate: Organism = find_mate()
+		if mate != null:
+			offspring_genotype = Genome.cross(lib, genotype, mate.genotype, rng, rate)
+			mate.pay_mating_cost()
+			kind = "mating"
+		else:
+			# No partner in range: keep the energy and retry on the next check, unless we have
+			# waited long enough, then self-fertilize so sparse populations survive.
+			_mate_wait += energy_timer.wait_time
+			if _mate_wait < GameConfig.self_fertilize_after:
+				return
+			offspring_genotype = Genome.cross(lib, genotype, genotype, rng, rate)
+			kind = "self"
+	_mate_wait = 0.0
+	
+	# Emit reproduction signal
+	organism_reproduced.emit(self, offspring_genotype, kind)
+	
+	# Deduct reproduction cost
+	energy -= reproduction_cost
+	print("Organism reproduced (", kind, ")! Energy cost: ", reproduction_cost, ", Remaining energy: ", energy)
+	
+	_start_reproduction_cooldown()
 
 # Cooldown support
 func _on_prey_seek_cooldown_timeout():

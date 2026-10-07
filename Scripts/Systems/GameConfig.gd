@@ -23,8 +23,21 @@ var food_spawn_interval = 2.0
 var max_organisms = 50
 var reproduction_energy = 80
 var max_energy = 100
-var mutation_chance = 0.1
 var food_energy_value = 30
+
+# --- Genetics v2: single source of truth for reproduction settings ---
+enum ReproductionMode { SEXUAL, ASEXUAL }
+
+var reproduction_mode: ReproductionMode = ReproductionMode.SEXUAL
+## Chance per allele per gamete (sexual) or per clone copy (asexual) of mutating.
+var mutation_rate: float = 0.05
+## Max distance in px to a ready adult for proximity mating.
+var mate_radius: float = 90.0
+## Energy the initiating parent pays (the egg) and the partner pays.
+var egg_cost: float = 20.0
+var partner_cost: float = 5.0
+## Seconds a ready organism waits for a partner before self-fertilizing.
+var self_fertilize_after: float = 20.0
 
 # Helper function to get random array element
 func get_random_element(array: Array):
