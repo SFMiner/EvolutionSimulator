@@ -10,6 +10,7 @@ extends SceneTree
 ##   EXP_FOOD_INTERVAL=<s> EXP_FOOD_MAX=<n>  EXP_FOUNDERS=<n>   (override GameConfig for a variant)
 ##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  (environment controls)
 ##   EXP_CANNIBAL_EFF=<x> EXP_UPKEEP=slow,med,fast EXP_MEALMULT=low,med,high  (trade-off tuning overrides)
+##   EXP_CANNIBALS=0 turns all cannibal predation off (pair with EXP_CANNIBAL_EFF=1 to remove the plant penalty too)
 ##   EXP_OUT=<file> also appends every EXP line to a file (Godot prints are very slow when piped
 ##   on Windows; run with stdout to /dev/null and read the file instead).
 ##   EXP_QUIET=1 hides the per-run lines.   EXP_BENCH=50,100,300 runs the frame-time benchmark instead.
@@ -76,6 +77,8 @@ func _run() -> void:
 	var meal_text: PackedStringArray = OS.get_environment("EXP_MEALMULT").split(",", false)
 	if meal_text.size() == 3:
 		_config.meal_multiplier_by_metabolism = {"low": meal_text[0].to_float(), "medium": meal_text[1].to_float(), "high": meal_text[2].to_float()}
+	if OS.get_environment("EXP_CANNIBALS") != "":
+		_config.cannibalism_enabled = OS.get_environment("EXP_CANNIBALS") != "0"
 	if OS.get_environment("EXP_FOUNDERS").is_valid_int():
 		_config.founder_count = OS.get_environment("EXP_FOUNDERS").to_int()
 	var seeds: Array[int] = []
@@ -144,11 +147,15 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 	var next_second: float = 1.0
 	var extinct_at: float = -1.0
 	var max_drift: int = 0
+	var meals_at_half: int = 0
+	_config.diag = {"plant_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
 	while next_cp < CHECKPOINTS.size():
 		await process_frame
 		var t: float = float(main.simulation_time)
 		while t >= next_second:
 			pops.append(_alive(main))
+			if pops.size() == int(_seconds) / 2:
+				meals_at_half = int(_config.diag["plant_meals"])
 			foods.append(main.environment.get_node("FoodContainer").get_child_count())
 			max_drift = maxi(max_drift, absi(int(main.population_count) - pops[pops.size() - 1]))
 			next_second += 1.0
@@ -172,7 +179,10 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 		sum2 += float(pops[i])
 		min2 = mini(min2, pops[i])
 		max2 = maxi(max2, pops[i])
+	var meals_2: int = int(_config.diag["plant_meals"]) - meals_at_half
 	var result: Dictionary = {
+		"meals_per_lizard_s": float(meals_2) / maxf(1.0, sum2) if sum2 > 0.0 else -1.0,
+		"kills": (_config.diag as Dictionary).duplicate(),
 		"traj": traj,
 		"pop_end": pop_end,
 		"pop_min": min2 if pops.size() > half else 0,
@@ -252,6 +262,7 @@ func _report(mode_name: String, all_results: Array[Dictionary]) -> void:
 		if float(r["extinct_at"]) < 0.0:
 			survivors.append(r)
 	results = survivors
+	_report_diag(results)
 	_emit("EXP allele freq (surviving runs only, n=%d): start  25%%   50%%   75%%   end | sd_end | per-seed end" % survivors.size())
 	for id: String in EvoGenetics.LOCUS_IDS:
 		for allele: String in _allele_list(id):
@@ -277,6 +288,44 @@ func _report(mode_name: String, all_results: Array[Dictionary]) -> void:
 			# movement of the mean from the start, in seed-spread units (rises = at least +2)
 			var z: float = (_mean(end_vals) - _mean(start_vals)) / maxf(sd_end, 0.0001)
 			_emit("EXP   %-11s %-2s  %s | sd %.3f | z %+.1f | %s" % [id, allele, "  ".join(cols), sd_end, z, " ".join(seed_cols)])
+
+
+## Per-capita diagnostics over all runs: meals per lizard-second (2nd half), cannibal kills by prey stage, deaths by cause.
+func _report_diag(results: Array[Dictionary]) -> void:
+	var meals: Array[float] = []
+	var causes: Array[String] = ["starved", "eaten", "hawk"]
+	var stages: Array[String] = ["kill_egg", "kill_juvenile", "kill_adult"]
+	var cause_vals: Dictionary = {}
+	var stage_vals: Dictionary = {}
+	for key: String in causes:
+		cause_vals[key] = [] as Array[float]
+	for key: String in stages:
+		stage_vals[key] = [] as Array[float]
+	var young_share: Array[float] = []
+	for r: Dictionary in results:
+		var mpl: float = float(r["meals_per_lizard_s"])
+		if mpl >= 0.0:
+			meals.append(mpl)
+		var deaths: Dictionary = r["deaths"]
+		for key: String in causes:
+			(cause_vals[key] as Array[float]).append(float(deaths.get(key, 0)))
+		var kills: Dictionary = r["kills"]
+		var total_kills: float = 0.0
+		for key: String in stages:
+			(stage_vals[key] as Array[float]).append(float(kills.get(key, 0)))
+			total_kills += float(kills.get(key, 0))
+		if total_kills > 0.0:
+			young_share.append((float(kills.get("kill_egg", 0)) + float(kills.get("kill_juvenile", 0))) / total_kills)
+	_emit("EXP per-capita: plant meals per lizard-second (2nd half) mean=%.4f sd=%.4f (= one meal per %.1f s)" % [
+			_mean(meals), _sd(meals), 1.0 / maxf(_mean(meals), 0.00001)])
+	var cause_line: PackedStringArray = PackedStringArray()
+	for key: String in causes:
+		cause_line.append("%s %.0f (sd %.0f)" % [key, _mean(cause_vals[key] as Array[float]), _sd(cause_vals[key] as Array[float])])
+	_emit("EXP deaths per run (mean, sd): " + ", ".join(cause_line))
+	var stage_line: PackedStringArray = PackedStringArray()
+	for key: String in stages:
+		stage_line.append("%s %.1f (sd %.1f)" % [key, _mean(stage_vals[key] as Array[float]), _sd(stage_vals[key] as Array[float])])
+	_emit("EXP cannibal kills per run by prey stage: " + ", ".join(stage_line) + " | egg+juvenile share of kills mean=%.3f sd=%.3f" % [_mean(young_share), _sd(young_share)])
 
 
 func _mean(values: Array[float]) -> float:

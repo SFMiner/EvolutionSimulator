@@ -58,6 +58,9 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
 - The click-to-inspect box is `Scripts/UI/Inspector.gd` (in the always-processing UI layer, so it works while paused).
 - Window is 1200x648 (project.godot display + canvas_items stretch): arena 800 px wide plus two 200 px panels, no overlap.
 - Debug `print`s are gated by `Organism.DEBUG` / `Food.DEBUG` (false). They cost ~6x on the experiment; do not re-enable in loops.
+- `GameConfig.cannibalism_enabled` (default true; `EXP_CANNIBALS=0` in the experiment) stops all cannibal predation. The
+  experiment report now prints plant meals per lizard-second (2nd half), cannibal kills by prey stage and deaths by cause.
+  Finding (2026-10-07, 10 seeds, sexual): cannibals do NOT regulate the population; see the report for numbers.
 - Experiment extras: `EXP_HABITAT=grass|sand|rock`, `EXP_HAWKS=1`, `EXP_HAWK_RISK`, `EXP_HAWK_FACTOR`, `EXP_CANNIBAL_EFF`,
   `EXP_UPKEEP=slow,med,fast`, `EXP_MEALMULT=low,med,high`, `EXP_FOOD_ENERGY`, `EXP_FOOD_INITIAL`, `EXP_TRACE=1` (population
   trace of extinct runs). The report prints sd and `z` = (end mean - start mean) / sd across seeds. It now takes ~1-2 min

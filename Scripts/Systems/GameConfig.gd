@@ -48,6 +48,10 @@ var meal_multiplier_by_metabolism: Dictionary = {"low": 0.55, "medium": 1.0, "hi
 var speed_upkeep_by_speed: Dictionary = {"slow": 0.0, "medium": 0.4, "fast": 0.9}
 ## Cannibals digest plants badly: multiplier on plant meal energy (prey energy is unchanged).
 var cannibal_plant_efficiency: float = 0.6
+## Diagnostic switch: false stops all cannibal predation (kk lizards just eat plants).
+var cannibalism_enabled: bool = true
+## Running counters for the selection experiment (plant meals, cannibal kills by prey stage).
+var diag: Dictionary = {"plant_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
 ## Show the per-lizard energy number and gene tags.
 var show_labels: bool = false
 

@@ -69,7 +69,7 @@ func _physics_process(delta):
 	if organism.detection_area != null and !is_seeking_food:
 		var chosen: Node2D = null
 		# Prefer prey if cannibal
-		if organism.genome.get("cannibal", false):
+		if GameConfig.cannibalism_enabled and organism.genome.get("cannibal", false):
 			var bodies = organism.detection_area.get_overlapping_bodies()
 			var best_d = INF
 			for b in bodies:

@@ -123,8 +123,8 @@ func _on_detection_area_body_entered(body: Node2D):
 		return
 	
 	# Prefer prey if cannibal and not in cooldown
-	if genome.get("cannibal", false) and !prey_seek_cooldown_active and current_state != "egg":
-		var other := _find_organism_ancestor(body)
+	if GameConfig.cannibalism_enabled and genome.get("cannibal", false) and !prey_seek_cooldown_active and current_state != "egg":
+		var other :=_find_organism_ancestor(body)
 		if other != null and other != self and other.scale.x <= scale.x * 0.5:
 			if ai.has_method("set_food_target"):
 				ai.set_food_target(other)
@@ -409,6 +409,7 @@ func _on_food_detected(body: Node2D):
 		
 		# Consume
 		body.consume()
+		GameConfig.diag["plant_meals"] = int(GameConfig.diag["plant_meals"]) + 1
 		# Energy/growth handling remains unchanged below
 		
 		# Metabolism and cannibalism change how much a plant meal is worth (Ecology rules)
@@ -481,7 +482,7 @@ func _on_food_detected(body: Node2D):
 		return
 
 	# Cannibalism: detect and eat smaller organisms if trait enabled
-	if genome.get("cannibal", false) and current_state != "egg":
+	if GameConfig.cannibalism_enabled and genome.get("cannibal", false) and current_state != "egg":
 		var other: Organism = null
 		if body is Organism:
 			other = body as Organism
@@ -498,6 +499,9 @@ func _on_food_detected(body: Node2D):
 					return
 				var gained = other.energy + 10.0 * other.scale.x
 				energy = min(energy + gained, max_energy)
+				var kill_key: String = "kill_" + str(other.current_state)
+				if GameConfig.diag.has(kill_key):
+					GameConfig.diag[kill_key] = int(GameConfig.diag[kill_key]) + 1
 				other.die(Ecology.DEATH_EATEN)
 				if DEBUG:
 					print("Cannibal consumed lizard! +", gained, " energy -> ", energy)
