@@ -28,14 +28,20 @@ func _run() -> void:
 	_config = get_root().get_node("/root/GameConfig")
 	await _run_mode("sexual", 0, 21)
 	await _run_mode("asexual", 1, 21)
+	_config.hawks_on = true
+	_config.habitat = 1  # sand
+	await _run_mode("sexual", 0, 22, true)
+	_config.hawks_on = false
+	_config.habitat = 0
 	Engine.time_scale = 1.0
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
 
-func _run_mode(mode_name: String, mode: int, seed_value: int) -> void:
+func _run_mode(mode_name_in: String, mode: int, seed_value: int, hawks: bool = false) -> void:
+	var mode_name: String = mode_name_in + ("+hawks" if hawks else "")
 	OS.set_environment("EVO_SEED", str(seed_value))
-	OS.set_environment("EVO_MODE", mode_name)
+	OS.set_environment("EVO_MODE", mode_name_in)
 	_config.reproduction_mode = mode
 	var main: Node = (load("res://Scenes/Main.tscn") as PackedScene).instantiate()
 	get_root().add_child(main)
@@ -53,8 +59,16 @@ func _run_mode(mode_name: String, mode: int, seed_value: int) -> void:
 	var live: Array[Dictionary] = main.get_live_genotypes()
 	_check(float(main.simulation_time) >= SIM_SECONDS or pop <= 0, mode_name + ": ran the full time or went extinct")
 	_check(pop > 0 or float(main.extinct_at) >= 0.0, mode_name + ": extinction is reported if population is 0")
-	_check(live.size() == pop or live.size() == pop + 1, mode_name + ": population counter matches live organisms")
-	if mode_name == "sexual":
+	_check(live.size() == pop, mode_name + ": population counter matches live organisms exactly")
+	var deaths: Dictionary = main.deaths
+	var dead: int = int(deaths["starved"]) + int(deaths["eaten"]) + int(deaths["hawk"])
+	var made: int = int(_config.founder_count) + int(births["mating"]) + int(births["self"]) + int(births["clone"])
+	_check(made - dead == pop, mode_name + ": founders + births - deaths = population (" + str(made) + " - " + str(dead) + " vs " + str(pop) + ")")
+	if hawks:
+		_check(int(deaths["hawk"]) > 0, mode_name + ": hawks caught some lizards")
+	else:
+		_check(int(deaths["hawk"]) == 0, mode_name + ": no hawk deaths with hawks off")
+	if mode_name_in == "sexual":
 		_check(int(births["clone"]) == 0, "sexual: no clone births")
 	else:
 		_check(int(births["mating"]) == 0 and int(births["self"]) == 0, "asexual: only clone births")

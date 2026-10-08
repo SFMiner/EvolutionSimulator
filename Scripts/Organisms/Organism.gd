@@ -1,6 +1,9 @@
 extends Node2D
 class_name Organism
 
+## Set true to get the per-tick / per-frame debug prints (they also slow experiments about 6x).
+const DEBUG: bool = false
+
 signal organism_died(organism)
 ## kind is "mating", "self" or "clone"; offspring_genotype is engine-shape {locus: [a, b]}.
 signal organism_reproduced(organism, offspring_genotype, kind)
@@ -29,6 +32,8 @@ var rng: RandomNumberGenerator = null
 var _mate_wait: float = 0.0  # seconds spent ready with no partner in range
 var energy: float = 100.0
 var current_state: String = "egg"
+## Why this lizard died (Ecology.DEATH_*); set in die().
+var death_cause: String = ""
 var generation: int = 1
 var growth_progress: float = 0.0  # 0.0 to 1.0 for gradual growth during juvenile phase
 
@@ -43,7 +48,8 @@ var max_energy = GameConfig.max_energy
 var food_energy_value = GameConfig.food_energy_value
 
 func _ready():
-	print("Organism _ready() called at position: ", position)
+	if DEBUG:
+		print("Organism _ready() called at position: ", position)
 	add_to_group("organisms")
 	# Initialize genotype if not set, then derive the expressed genome (phenotype) from it
 	if rng == null:
@@ -88,7 +94,9 @@ func _ready():
 	
 	# Set up detection area
 	detection_area.body_entered.connect(_on_detection_area_body_entered)
-	print("Organism detection area set up, waiting for food...")
+	if DEBUG:
+		print("Organism detection area set up, waiting for food...")
+	set_labels_visible(GameConfig.show_labels)
 
 func _find_organism_ancestor(node: Node) -> Organism:
 	var n: Node = node
@@ -252,6 +260,18 @@ func update_gene_tags():
 	if color_label != null:
 		color_label.text = _color_abbrev(str(genome.get("color", "green")))
 
+## Show or hide the energy number and gene tags (the "Show labels" checkbox).
+func set_labels_visible(on: bool) -> void:
+	$Label.visible = on
+	gene_tags.visible = on
+	if on:
+		_update_energy_label()
+		update_gene_tags()
+
+func _update_energy_label() -> void:
+	if $Label.visible:
+		$Label.text = str(int(round(energy)))
+
 func _on_energy_timer_timeout():
 	# Eggs don't lose energy
 	if current_state == "egg":
@@ -261,12 +281,21 @@ func _on_energy_timer_timeout():
 	var base_depletion_rate = energy_depletion_rates[genome.metabolism]
 	var scale_factor = scale.x  # Use X scale as the scaling factor
 	var scaled_depletion_rate = base_depletion_rate * scale_factor
-	
+	# Fast lizards also pay an upkeep for moving (Ecology.speed_upkeep)
+	scaled_depletion_rate += Ecology.speed_upkeep(GameConfig, str(genome.speed), scale_factor)
+
 	energy -= scaled_depletion_rate
-	$Label.text = str(energy)
+	_update_energy_label()
+
+	# Hawks (environment control): a camouflaged lizard is caught less often
+	if GameConfig.hawks_on and current_state != "egg":
+		var camouflaged: bool = Ecology.is_camouflaged(str(genome.color), GameConfig.habitat)
+		if rng.randf() < Ecology.hawk_risk(GameConfig, camouflaged):
+			die(Ecology.DEATH_HAWK)
+			return
 	
 	# Debug: Show scaling energy costs occasionally
-	if randf() < 0.1:  # 10% chance each energy tick
+	if DEBUG and randf() < 0.1:  # 10% chance each energy tick
 		print("Energy depletion: base=", base_depletion_rate, " scale=", scale_factor, " total=", scaled_depletion_rate, " remaining=", energy)
 	
 	# Check for death
@@ -288,7 +317,8 @@ func _on_growth_timer_timeout():
 			# Stop egg animation and prepare for movement
 			animation_player.stop()
 			update_sprite()
-			print("Egg hatched! Ready for movement animations")
+			if DEBUG:
+				print("Egg hatched! Ready for movement animations")
 		# Juveniles no longer grow automatically - they grow by eating
 
 func _on_growth_progress_timeout():
@@ -312,8 +342,8 @@ func play_movement_animation(direction: Vector2):
 	# Play the move animation if it's not already playing	
 	if animation_player.current_animation != "move":
 		animation_player.play("move")
-#		print("Playing move animation, rotation: ", rad_to_deg(angle), " degrees")
-		print("Playing move animation, rotation: ", sprite.rotation, " degrees")
+		if DEBUG:
+			print("Playing move animation, rotation: ", sprite.rotation, " rad")
 
 func stop_movement_animation():
 	# Stop movement animation
@@ -381,6 +411,9 @@ func _on_food_detected(body: Node2D):
 		body.consume()
 		# Energy/growth handling remains unchanged below
 		
+		# Metabolism and cannibalism change how much a plant meal is worth (Ecology rules)
+		var meal_mult: float = Ecology.meal_multiplier(GameConfig, str(genome.metabolism), bool(genome.get("cannibal", false)))
+
 		# Handle energy and growth based on state
 		if current_state == "juvenile":
 			# Growth rate affects energy gain vs growth speed
@@ -402,7 +435,7 @@ func _on_food_detected(body: Node2D):
 					scale_increase = 0.2
 			
 			# Apply energy gain and growth
-			energy += energy_gain
+			energy += energy_gain * meal_mult
 			energy = min(energy, max_energy)
 			
 			# Grow based on growth rate trait
@@ -417,14 +450,17 @@ func _on_food_detected(body: Node2D):
 			if growth_progress >= 1.0:
 				current_state = "adult"
 				update_sprite()
-				print("Juvenile became adult!")
-			
-			print("Juvenile ate food! Energy: ", energy, " Growth progress: ", growth_progress, " Scale: ", juvenile_scale, " (Growth rate: ", genome.growth_rate, ")")
+				if DEBUG:
+					print("Juvenile became adult!")
+
+			if DEBUG:
+				print("Juvenile ate food! Energy: ", energy, " Growth progress: ", growth_progress, " Scale: ", juvenile_scale, " (Growth rate: ", genome.growth_rate, ")")
 		else:
-			# Adults get full energy
-			energy += food_energy_value
+			# Adults get a full meal, adjusted by metabolism and cannibalism (see Ecology)
+			energy += food_energy_value * meal_mult
 			energy = min(energy, max_energy)
-			print("Adult ate food! Energy: ", energy)
+			if DEBUG:
+				print("Adult ate food! Energy: ", energy)
 		
 		# Clear food target after eating
 		if ai.has_method("clear_food_target"):
@@ -462,19 +498,24 @@ func _on_food_detected(body: Node2D):
 					return
 				var gained = other.energy + 10.0 * other.scale.x
 				energy = min(energy + gained, max_energy)
-				other.die()
-				print("Cannibal consumed lizard! +", gained, " energy -> ", energy)
+				other.die(Ecology.DEATH_EATEN)
+				if DEBUG:
+					print("Cannibal consumed lizard! +", gained, " energy -> ", energy)
 				if ai.has_method("clear_food_target"):
 					ai.clear_food_target()
 				return
 
-func die():
+## `cause` is one of Ecology.DEATH_* and is read by SimulationManager for the death stats.
+func die(cause: String = Ecology.DEATH_STARVED) -> void:
 	# Guard: a cannibal's kill and a starvation tick can both call die() in one frame, which
 	# emitted organism_died twice and made SimulationManager.population_count undercount.
 	if is_queued_for_deletion():
 		return
-	organism_died.emit(self)
+	death_cause = cause
+	# Queue the free first: listeners that count the container's children (the population
+	# label) ran while this lizard was still a child and saw one too many.
 	queue_free()
+	organism_died.emit(self)
 
 func is_ready_to_mate() -> bool:
 	return current_state == "adult" and energy >= reproduction_energy and !is_queued_for_deletion()
@@ -538,7 +579,8 @@ func reproduce() -> void:
 	
 	# Deduct reproduction cost
 	energy -= reproduction_cost
-	print("Organism reproduced (", kind, ")! Energy cost: ", reproduction_cost, ", Remaining energy: ", energy)
+	if DEBUG:
+		print("Organism reproduced (", kind, ")! Energy cost: ", reproduction_cost, ", Remaining energy: ", energy)
 	
 	_start_reproduction_cooldown()
 

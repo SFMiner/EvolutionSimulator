@@ -46,7 +46,7 @@ func _physics_process(delta):
 	organism.play_movement_animation(direction)
 	
 	# Debug: Print direction and speed occasionally
-	if randf() < 0.01:  # 1% chance each frame
+	if Organism.DEBUG and randf() < 0.01:  # 1% chance each frame
 		var seeking_text = " (seeking food)" if is_seeking_food else ""
 		print("AI moving: direction=", direction, " speed=", speed, " state=", organism.current_state, seeking_text)
 	
@@ -124,7 +124,8 @@ func set_food_target(food: Node2D):
 	var direction_to_food = (food.position - organism.position).normalized()
 	current_direction = direction_to_food
 	
-	print("AI now seeking food at position: ", food.position, " direction: ", direction_to_food)
+	if Organism.DEBUG:
+		print("AI now seeking food at position: ", food.position, " direction: ", direction_to_food)
 
 func clear_food_target():
 	detected_food = null

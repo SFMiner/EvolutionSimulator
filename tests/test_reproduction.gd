@@ -27,6 +27,7 @@ func _run() -> void:
 	await _test_mating()
 	await _test_out_of_range_then_self()
 	await _test_asexual()
+	await _test_energy_hawks_tags()
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -106,3 +107,42 @@ func _test_asexual() -> void:
 	_check(is_equal_approx(b.energy, 90.0), "no partner cost when cloning")
 	_config.reproduction_mode = 0
 	await _cleanup([a, b])
+
+
+func _test_energy_hawks_tags() -> void:
+	_config.reproduction_mode = 1
+	# Energy drain: low metabolism + slow = 1/s; high metabolism + fast = 3 + fast upkeep
+	var calm: Node = _make(Vector2(0, 0), {"metabolism": ["m", "m"], "speed": ["s", "s"]}, 8)
+	var racer: Node = _make(Vector2(300, 0), {"metabolism": ["M", "M"], "speed": ["S", "S"]}, 9)
+	calm.scale = Vector2.ONE  # _make leaves the egg scale; drain is scaled by body size
+	racer.scale = Vector2.ONE
+	calm.energy = 50.0
+	racer.energy = 50.0
+	calm._on_energy_timer_timeout()
+	racer._on_energy_timer_timeout()
+	_check(is_equal_approx(calm.energy, 49.0), "low metabolism + slow drains 1 per second")
+	var fast_upkeep: float = float(_config.speed_upkeep_by_speed["fast"])
+	_check(is_equal_approx(racer.energy, 50.0 - 3.0 - fast_upkeep), "high metabolism + fast drains 3 plus the speed upkeep")
+	# Labels: hidden by default, whole-number energy, metabolism tag works (scene node was misspelled)
+	_check(not calm.get_node("Label").visible and not calm.gene_tags.visible, "labels are hidden by default")
+	racer.energy = 36.9999999701977
+	calm.set_labels_visible(true)
+	racer.set_labels_visible(true)
+	_check(racer.get_node("Label").text == "37", "energy label shows a whole number: " + racer.get_node("Label").text)
+	_check(racer.gene_tags.get_node("metabolism").text == "H", "metabolism tag shows H for high")
+	_check(calm.gene_tags.get_node("metabolism").text == "L", "metabolism tag shows L for low")
+	_check(racer.gene_tags.get_node("color").text != "", "color tag is filled in")
+	_check(racer.gene_tags.get_node("speed").text == "H" and racer.gene_tags.get_node("growth_rate").text != "", "speed and growth tags are filled in")
+	# Hawks: a certain hit kills the lizard and records the cause
+	var saved_risk: float = float(_config.hawk_risk)
+	var died: Array = []
+	racer.organism_died.connect(func(o: Node) -> void: died.append(o))
+	_config.hawks_on = true
+	_config.hawk_risk = 1.0
+	racer.energy = 90.0
+	racer._on_energy_timer_timeout()
+	_check(died.size() == 1 and racer.death_cause == "hawk", "a hawk strike kills with cause hawk")
+	_config.hawks_on = false
+	_config.hawk_risk = saved_risk
+	_config.reproduction_mode = 0
+	await _cleanup([calm, racer])

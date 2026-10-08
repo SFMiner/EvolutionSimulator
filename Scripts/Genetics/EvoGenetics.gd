@@ -92,6 +92,16 @@ static func to_genome(genotype: Dictionary) -> Dictionary:
 	return out
 
 
+## Allele letters for display, one pair per locus, e.g. "Mm Ss gg CbCy Kk".
+static func genotype_label(genotype: Dictionary) -> String:
+	var lib: GenomeLibrary = get_library()
+	var parts: PackedStringArray = PackedStringArray()
+	for id: String in LOCUS_IDS:
+		var locus: GenomeLocus = lib.get_locus(id)
+		parts.append(locus.genotype_key(_pair(genotype, locus)))
+	return " ".join(parts)
+
+
 static func locus_name(locus_id: String) -> String:
 	var lib: GenomeLibrary = get_library()
 	if lib.has_locus(locus_id):

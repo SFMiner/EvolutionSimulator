@@ -1,10 +1,11 @@
-[gd_scene load_steps=4 format=3 uid="uid://main_scene_unique"]
+[gd_scene load_steps=6 format=3 uid="uid://main_scene_unique"]
 
 [ext_resource type="PackedScene" uid="uid://kixqpupev4wl" path="res://Scenes/Environment.tscn" id="1_0x0x0"]
 [ext_resource type="Script" path="res://Scripts/UI/SimulationManager.gd" id="2_0x0x0"]
 [ext_resource type="Script" path="res://Scripts/UI/PopulationGraph.gd" id="3_0x0x0"]
 
 [ext_resource type="Script" path="res://Scripts/UI/AlleleGraph.gd" id="4_0x0x0"]
+[ext_resource type="Script" path="res://Scripts/UI/Inspector.gd" id="5_0x0x0"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("2_0x0x0")
@@ -22,7 +23,7 @@ anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -200.0
-offset_bottom = 300.0
+offset_bottom = 404.0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="UI/ControlPanel"]
 layout_mode = 1
@@ -30,17 +31,15 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 10.0
-offset_top = 10.0
+offset_top = 8.0
 offset_right = -10.0
-offset_bottom = -10.0
+offset_bottom = -8.0
+theme_override_constants/separation = 3
 
 [node name="Label" type="Label" parent="UI/ControlPanel/VBoxContainer"]
 layout_mode = 2
 text = "Evolution Simulator"
 horizontal_alignment = 1
-
-[node name="HSeparator" type="HSeparator" parent="UI/ControlPanel/VBoxContainer"]
-layout_mode = 2
 
 [node name="PopulationLabel" type="Label" parent="UI/ControlPanel/VBoxContainer"]
 layout_mode = 2
@@ -50,15 +49,17 @@ text = "Population: 0"
 layout_mode = 2
 text = "Generation: 1"
 
-[node name="HSeparator2" type="HSeparator" parent="UI/ControlPanel/VBoxContainer"]
+[node name="ButtonRow" type="HBoxContainer" parent="UI/ControlPanel/VBoxContainer"]
 layout_mode = 2
 
-[node name="SpawnButton" type="Button" parent="UI/ControlPanel/VBoxContainer"]
+[node name="SpawnButton" type="Button" parent="UI/ControlPanel/VBoxContainer/ButtonRow"]
 layout_mode = 2
-text = "Spawn Organism"
+size_flags_horizontal = 3
+text = "Spawn"
 
-[node name="PauseButton" type="Button" parent="UI/ControlPanel/VBoxContainer"]
+[node name="PauseButton" type="Button" parent="UI/ControlPanel/VBoxContainer/ButtonRow"]
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Pause"
 
 [node name="ModeOption" type="OptionButton" parent="UI/ControlPanel/VBoxContainer"]
@@ -74,15 +75,63 @@ max_value = 0.2
 step = 0.005
 value = 0.05
 
+[node name="HSeparator" type="HSeparator" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="FoodLabel" type="Label" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+text = "Food: normal"
+
+[node name="FoodSlider" type="HSlider" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+value = 0.87
+
+[node name="FoodEnds" type="HBoxContainer" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="Scarce" type="Label" parent="UI/ControlPanel/VBoxContainer/FoodEnds"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Scarce"
+
+[node name="Plenty" type="Label" parent="UI/ControlPanel/VBoxContainer/FoodEnds"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Plenty"
+horizontal_alignment = 2
+
+[node name="HabitatRow" type="HBoxContainer" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="HabitatLabel" type="Label" parent="UI/ControlPanel/VBoxContainer/HabitatRow"]
+layout_mode = 2
+text = "Ground:"
+
+[node name="HabitatOption" type="OptionButton" parent="UI/ControlPanel/VBoxContainer/HabitatRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HawksCheck" type="CheckButton" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+text = "Hawks"
+
+[node name="LabelsCheck" type="CheckButton" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+text = "Show labels"
+
 [node name="GraphNode" type="Control" parent="UI"]
 layout_mode = 3
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -200.0
-offset_top = 280.0
+offset_top = 414.0
 offset_right = 0.0
-offset_bottom = 610.0
+offset_bottom = 644.0
 script = ExtResource("3_0x0x0")
 z_index = -1
 mouse_filter = 2
@@ -91,6 +140,11 @@ mouse_filter = 2
 layout_mode = 3
 anchors_preset = 0
 offset_right = 200.0
-offset_bottom = 640.0
+offset_bottom = 648.0
 mouse_filter = 2
 script = ExtResource("4_0x0x0")
+
+[node name="Inspector" type="PanelContainer" parent="UI"]
+offset_right = 10.0
+offset_bottom = 10.0
+script = ExtResource("5_0x0x0")

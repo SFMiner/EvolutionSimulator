@@ -27,8 +27,9 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
 ## Ecology tuning and the selection experiment
 - Ecology numbers live in `GameConfig` (founders, food interval/cap/initial, energy tables, reproduction
   energy). `Organism`, `OrganismAI` and `EnvironmentManager` read them; do not re-hardcode them there.
-  Tuned (24 founders, food every 0.35 s, cap 150) so the true population settles around 70-80 in both modes
-  (range ~45-105 over 10 seeds x 600 s, no extinctions), up from 2-5 with 5 founders.
+  Tuned in `fb31c7a` (24 founders, food every 0.35 s, cap 150) to a population of 70-80; after the trade-offs
+  (below) it settles ~30 at the default food, and `food_initial` is 30 (was 5: a 5-item start starved the founder
+  batch in ~1 of 10 runs once meals were worth less).
 - **Selection experiment (slow, not in run_all_tests):**
   `EXP_OUT=out.txt ../Godot_v4.5-stable_win64.exe --headless --fixed-fps 60 --path . --script tests/experiment_selection.gd >/dev/null`
   Env: `EXP_SEEDS=1,2,3,4,5` `EXP_SECONDS=600` `EXP_MODES=sexual,asexual` `EXP_SCALE=4` and `EXP_FOOD_INTERVAL` /
@@ -42,5 +43,30 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
 - `Organism.die()` now returns early if already queued for deletion. Before, a cannibal kill plus a starvation tick
   could emit `organism_died` twice, so `SimulationManager.population_count` undercounted (UI showed 41 vs 52 actual)
   and failed the smoke test's counter check at tuned densities. The experiment uses the true live count anyway.
-- Trait effects (see README "Selection pressures"): metabolism and speed are selected hard; growth_rate is a wash;
-  color has no effect at all (use it as the neutral drift yardstick); cannibal shows at most a weak edge under scarcity.
+- Trait effects: see README "Selection pressures" (measured after the trade-offs spec, `Docs/Trade-offs and Environment.md`).
+
+## Trade-offs, environment and display (spec: `Docs/Trade-offs and Environment.md`)
+- Pure rules live in `Scripts/Systems/Ecology.gd` (static functions taking the GameConfig node as `cfg`; tested by
+  `tests/test_ecology.gd`). Numbers: `GameConfig` ("TRADE-OFFS AND ENVIRONMENT"). Hawk rolls use the lizard's `rng` (the shared one).
+- `Organism.die(cause)` records `death_cause` (starved / eaten / hawk) and calls `queue_free()` BEFORE emitting
+  `organism_died`, so counting listeners never see the dying lizard still in the container (that was the "53 vs 54" label).
+  `SimulationManager.deaths` counts by cause; invariant tested in the smoke test: founders + births - deaths = population.
+- Environment controls (Food slider, Ground, Hawks, Show labels) are in `SimulationManager`; the Environment node's
+  `set_habitat()` / `set_food_interval()` apply them. `EVO_HABITAT`, `EVO_HAWKS`, `EVO_LABELS`, `EVO_FOOD_INTERVAL`,
+  `EVO_INSPECT=1` (select an adult before the shot) extend the screenshot gate. The Main node reads `EVO_*` after the
+  Environment child is ready, so `_setup_environment_controls` re-applies habitat/food to it.
+- The click-to-inspect box is `Scripts/UI/Inspector.gd` (in the always-processing UI layer, so it works while paused).
+- Window is 1200x648 (project.godot display + canvas_items stretch): arena 800 px wide plus two 200 px panels, no overlap.
+- Debug `print`s are gated by `Organism.DEBUG` / `Food.DEBUG` (false). They cost ~6x on the experiment; do not re-enable in loops.
+- Experiment extras: `EXP_HABITAT=grass|sand|rock`, `EXP_HAWKS=1`, `EXP_HAWK_RISK`, `EXP_HAWK_FACTOR`, `EXP_CANNIBAL_EFF`,
+  `EXP_UPKEEP=slow,med,fast`, `EXP_MEALMULT=low,med,high`, `EXP_FOOD_ENERGY`, `EXP_FOOD_INITIAL`, `EXP_TRACE=1` (population
+  trace of extinct runs). The report prints sd and `z` = (end mean - start mean) / sd across seeds. It now takes ~1-2 min
+  for 10 seeds x 600 s (prints gated off); 14 processes in parallel on a 16-core box is fine.
+  Runs that share an output file append to it: kill old processes before rerunning with the same `EXP_OUT`.
+- Why the environment effects are weaker than the spec guessed: food only sets the population SIZE (population is
+  food-limited, ~45 at Plenty, ~30 default, ~20 Scarce), not how often one lizard eats (about one meal per 12 s at every
+  level), so the break-even for metabolism barely moves with food. Drift at N of 20-30 is large (sd 0.2-0.3 across seeds),
+  so a trait must move the mean by 0.4-0.6 to count as 2 sd. A real flip needs a population cap (`GameConfig.max_organisms`
+  exists but is unused) so Plenty leaves food surplus; the spec said not to add mechanics, so that was not done.
+- Extinction: ~3% of default runs and ~10% of hawk or Scarce runs go extinct (drift at small N, and fast lizards fixing
+  the upkeep cost shrinks N). Scarce interval 0.5 is the lowest food level that mostly survives; 0.6-0.7 loses 15%.

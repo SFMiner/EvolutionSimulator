@@ -8,6 +8,8 @@ extends SceneTree
 ## Settings via environment variables (all optional):
 ##   EXP_SEEDS=1,2,3,4,5   EXP_SECONDS=600   EXP_MODES=sexual,asexual   EXP_SCALE=4 (Engine.time_scale)
 ##   EXP_FOOD_INTERVAL=<s> EXP_FOOD_MAX=<n>  EXP_FOUNDERS=<n>   (override GameConfig for a variant)
+##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  (environment controls)
+##   EXP_CANNIBAL_EFF=<x> EXP_UPKEEP=slow,med,fast EXP_MEALMULT=low,med,high  (trade-off tuning overrides)
 ##   EXP_OUT=<file> also appends every EXP line to a file (Godot prints are very slow when piped
 ##   on Windows; run with stdout to /dev/null and read the file instead).
 ##   EXP_QUIET=1 hides the per-run lines.   EXP_BENCH=50,100,300 runs the frame-time benchmark instead.
@@ -52,6 +54,28 @@ func _run() -> void:
 		_config.food_spawn_interval = OS.get_environment("EXP_FOOD_INTERVAL").to_float()
 	if OS.get_environment("EXP_FOOD_MAX").is_valid_int():
 		_config.food_max = OS.get_environment("EXP_FOOD_MAX").to_int()
+	var habitat_text: String = OS.get_environment("EXP_HABITAT").to_lower()
+	if habitat_text != "":
+		_config.habitat = {"grass": 0, "sand": 1, "rock": 2}.get(habitat_text, 0)
+	if OS.get_environment("EXP_HAWKS") != "":
+		_config.hawks_on = OS.get_environment("EXP_HAWKS") == "1"
+	if OS.get_environment("EXP_HAWK_RISK").is_valid_float():
+		_config.hawk_risk = OS.get_environment("EXP_HAWK_RISK").to_float()
+	if OS.get_environment("EXP_FOOD_INITIAL").is_valid_int():
+		_config.food_initial = OS.get_environment("EXP_FOOD_INITIAL").to_int()
+	if OS.get_environment("EXP_FOOD_ENERGY").is_valid_float():
+		_config.food_energy_value = OS.get_environment("EXP_FOOD_ENERGY").to_float()
+	if OS.get_environment("EXP_HAWK_FACTOR").is_valid_float():
+		_config.hawk_camouflage_factor = OS.get_environment("EXP_HAWK_FACTOR").to_float()
+	# Optional trade-off overrides for tuning: EXP_CANNIBAL_EFF, EXP_UPKEEP="0,0.4,0.9", EXP_MEALMULT="0.7,1,1.4"
+	if OS.get_environment("EXP_CANNIBAL_EFF").is_valid_float():
+		_config.cannibal_plant_efficiency = OS.get_environment("EXP_CANNIBAL_EFF").to_float()
+	var upkeep_text: PackedStringArray = OS.get_environment("EXP_UPKEEP").split(",", false)
+	if upkeep_text.size() == 3:
+		_config.speed_upkeep_by_speed = {"slow": upkeep_text[0].to_float(), "medium": upkeep_text[1].to_float(), "fast": upkeep_text[2].to_float()}
+	var meal_text: PackedStringArray = OS.get_environment("EXP_MEALMULT").split(",", false)
+	if meal_text.size() == 3:
+		_config.meal_multiplier_by_metabolism = {"low": meal_text[0].to_float(), "medium": meal_text[1].to_float(), "high": meal_text[2].to_float()}
 	if OS.get_environment("EXP_FOUNDERS").is_valid_int():
 		_config.founder_count = OS.get_environment("EXP_FOUNDERS").to_int()
 	var seeds: Array[int] = []
@@ -72,19 +96,29 @@ func _run() -> void:
 		quit(0)
 		return
 
-	_emit("EXP config: founders=%d food_interval=%.3f food_max=%d seconds=%.0f scale=%.1f seeds=%s fps=%d" % [
+	_emit("EXP config: founders=%d food_interval=%.3f food_max=%d seconds=%.0f scale=%.1f seeds=%s fps=%d habitat=%d hawks=%s hawk_risk=%.4f cannibal_eff=%.2f upkeep=%s meal_mult=%s" % [
 			int(_config.founder_count), float(_config.food_spawn_interval), int(_config.food_max),
-			_seconds, _scale, str(seeds), Engine.max_fps])
+			_seconds, _scale, str(seeds), Engine.max_fps, int(_config.habitat), str(_config.hawks_on),
+			float(_config.hawk_risk), float(_config.cannibal_plant_efficiency),
+			str(_config.speed_upkeep_by_speed), str(_config.meal_multiplier_by_metabolism)])
 	for mode_name: String in modes:
 		var results: Array[Dictionary] = []
 		for seed_value: int in seeds:
 			var result: Dictionary = await _run_one(mode_name, seed_value)
 			results.append(result)
 			if not _quiet:
-				_emit("EXP run mode=%s seed=%d pop_end=%d pop_min=%d pop_mean2=%.1f pop_max=%d extinct_at=%.1f counter_drift_max=%d births=%s maxgen=%d digest=%d wall=%.1fs" % [
+				_emit("EXP run mode=%s seed=%d pop_end=%d pop_min=%d pop_mean2=%.1f pop_max=%d extinct_at=%.1f counter_drift_max=%d food_mean2=%.0f births=%s deaths=%s maxgen=%d digest=%d wall=%.1fs" % [
 						mode_name, seed_value, int(result["pop_end"]), int(result["pop_min"]), float(result["pop_mean2"]),
-						int(result["pop_max"]), float(result["extinct_at"]), int(result["max_drift"]), str(result["births"]),
+						int(result["pop_max"]), float(result["extinct_at"]), int(result["max_drift"]), float(result["food_mean2"]), str(result["births"]), str(result["deaths"]),
 						int(result["max_gen"]), int(result["digest"]), float(result["wall"])])
+		if OS.get_environment("EXP_TRACE") == "1":
+			for r: Dictionary in results:
+				if float(r["extinct_at"]) >= 0.0:
+					var trace: PackedStringArray = PackedStringArray()
+					var series: Array = r["pops"]
+					for i: int in range(0, series.size(), 20):
+						trace.append(str(series[i]))
+					_emit("EXP trace (extinct run, population every 20 s): " + " ".join(trace))
 		_report(mode_name, results)
 	Engine.time_scale = 1.0
 	quit(0)
@@ -106,6 +140,7 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 	traj.append(_freqs(main.get_live_genotypes()))
 	var next_cp: int = 0
 	var pops: Array[int] = []
+	var foods: Array[int] = []
 	var next_second: float = 1.0
 	var extinct_at: float = -1.0
 	var max_drift: int = 0
@@ -114,6 +149,7 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 		var t: float = float(main.simulation_time)
 		while t >= next_second:
 			pops.append(_alive(main))
+			foods.append(main.environment.get_node("FoodContainer").get_child_count())
 			max_drift = maxi(max_drift, absi(int(main.population_count) - pops[pops.size() - 1]))
 			next_second += 1.0
 		if t >= CHECKPOINTS[next_cp] * _seconds:
@@ -145,15 +181,25 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 		"extinct_at": extinct_at,
 		"max_drift": max_drift,
 		"births": main.births.duplicate(),
+		"deaths": main.deaths.duplicate(),
 		"max_gen": int(main.current_generation),
 		"digest": _digest(main, live),
 		"wall": float(Time.get_ticks_msec() - started_ms) / 1000.0,
 		"pops": pops,
+		"food_mean2": _mean_int_tail(foods),
 	}
 	main.queue_free()
 	await process_frame
 	await process_frame
 	return result
+
+
+func _mean_int_tail(values: Array[int]) -> float:
+	var half: int = values.size() / 2
+	var total: float = 0.0
+	for i: int in range(half, values.size()):
+		total += float(values[i])
+	return total / maxf(1.0, float(values.size() - half))
 
 
 ## Real number of living organisms. SimulationManager.population_count can drift (die() can run twice).
@@ -223,7 +269,14 @@ func _report(mode_name: String, all_results: Array[Dictionary]) -> void:
 				var v: float = float((traj[CHECKPOINTS.size()] as Dictionary)[id][allele])
 				end_vals.append(v)
 				seed_cols.append("%.2f" % v)
-			_emit("EXP   %-11s %-2s  %s | %.3f | %s" % [id, allele, "  ".join(cols), _sd(end_vals), " ".join(seed_cols)])
+			var start_vals: Array[float] = []
+			for r: Dictionary in results:
+				var traj0: Array = r["traj"]
+				start_vals.append(float((traj0[0] as Dictionary)[id][allele]))
+			var sd_end: float = _sd(end_vals)
+			# movement of the mean from the start, in seed-spread units (rises = at least +2)
+			var z: float = (_mean(end_vals) - _mean(start_vals)) / maxf(sd_end, 0.0001)
+			_emit("EXP   %-11s %-2s  %s | sd %.3f | z %+.1f | %s" % [id, allele, "  ".join(cols), sd_end, z, " ".join(seed_cols)])
 
 
 func _mean(values: Array[float]) -> float:

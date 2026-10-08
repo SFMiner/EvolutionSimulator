@@ -1,14 +1,20 @@
 extends Node2D
 
 var environment: Node2D
-@onready var spawn_button: Button = $UI/ControlPanel/VBoxContainer/SpawnButton
-@onready var pause_button: Button = $UI/ControlPanel/VBoxContainer/PauseButton
+@onready var spawn_button: Button = $UI/ControlPanel/VBoxContainer/ButtonRow/SpawnButton
+@onready var pause_button: Button = $UI/ControlPanel/VBoxContainer/ButtonRow/PauseButton
 @onready var population_label: Label = $UI/ControlPanel/VBoxContainer/PopulationLabel
 @onready var generation_label: Label = $UI/ControlPanel/VBoxContainer/GenerationLabel
 @onready var mode_option: OptionButton = $UI/ControlPanel/VBoxContainer/ModeOption
 @onready var mutation_label: Label = $UI/ControlPanel/VBoxContainer/MutationLabel
 @onready var mutation_slider: HSlider = $UI/ControlPanel/VBoxContainer/MutationSlider
 @onready var allele_graph: Control = $UI/AlleleGraph
+@onready var food_label: Label = $UI/ControlPanel/VBoxContainer/FoodLabel
+@onready var food_slider: HSlider = $UI/ControlPanel/VBoxContainer/FoodSlider
+@onready var habitat_option: OptionButton = $UI/ControlPanel/VBoxContainer/HabitatRow/HabitatOption
+@onready var hawks_check: CheckButton = $UI/ControlPanel/VBoxContainer/HawksCheck
+@onready var labels_check: CheckButton = $UI/ControlPanel/VBoxContainer/LabelsCheck
+@onready var inspector: PanelContainer = $UI/Inspector
 
 var organism_container: Node2D
 var population_graph: Control
@@ -30,11 +36,16 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # Births by kind, for the stats panel
 var births: Dictionary = {"mating": 0, "self": 0, "clone": 0}
 var extinct_at: float = -1.0
+# Deaths by cause (Ecology.DEATH_*), shown under the births in the stats panel
+var deaths: Dictionary = {"starved": 0, "eaten": 0, "hawk": 0}
+
+const HAWK_STRIKE: GDScript = preload("res://Scripts/Environment/HawkStrike.gd")
 
 # Screenshot gate (EVO_SHOT=<png>, optional EVO_MODE, EVO_SECONDS, EVO_SEED)
 var _shot_path: String = ""
 var _shot_seconds: float = 90.0
 var _shot_pending: bool = false
+var _inspect_in_shot: bool = false  # EVO_INSPECT=1: select an adult before the screenshot
 
 func _ready():
 	_read_env_settings()
@@ -43,7 +54,8 @@ func _ready():
 	spawn_button.pressed.connect(_on_spawn_button_pressed)
 	pause_button.pressed.connect(_on_pause_button_pressed)
 	_setup_genetics_controls()
-	
+	_setup_environment_controls()
+
 	# Defer the initialization to ensure all nodes are ready
 	call_deferred("_initialize_simulation")
 
@@ -68,7 +80,8 @@ func _initialize_simulation():
 	
 	# Find the organism container
 	organism_container = environment.get_node("OrganismContainer")
-	
+	inspector.organism_container = organism_container
+
 	# Find the population graph
 	population_graph = get_node("UI/GraphNode")
 	
@@ -131,11 +144,19 @@ func _on_pause_button_pressed():
 
 func _on_organism_died(organism: Organism):
 	population_count -= 1
-	print("Organism died. Population: ", population_count)
+	var cause: String = organism.death_cause
+	deaths[cause] = int(deaths.get(cause, 0)) + 1
+	if cause == Ecology.DEATH_HAWK:
+		_spawn_hawk_cue(organism.position)
 	if population_count <= 0 and extinct_at < 0.0:
 		extinct_at = simulation_time
 		print("EXTINCTION at t=", snappedf(simulation_time, 0.1), "s")
 	update_ui()
+
+func _spawn_hawk_cue(where: Vector2) -> void:
+	var cue: Node2D = HAWK_STRIKE.new()
+	environment.add_child(cue)
+	cue.position = where
 
 func _on_organism_reproduced(organism: Organism, offspring_genotype: Dictionary, kind: String):
 	# Create offspring; `genome` (phenotype) is derived from the genotype in Organism._ready
@@ -160,17 +181,18 @@ func _on_organism_reproduced(organism: Organism, offspring_genotype: Dictionary,
 	if offspring.generation > current_generation:
 		current_generation = offspring.generation
 	
-	print("Organism reproduced. Population: ", population_count, " Generation: ", current_generation)
 	update_ui()
 
 func update_ui():
 	# Verify actual organism count in scene tree
-	var actual_count = 0
+	var actual_count: int = 0
 	if organism_container != null:
-		actual_count = organism_container.get_child_count()
-	
-	# Update labels
-	population_label.text = "Population: " + str(population_count) + " (Actual: " + str(actual_count) + ")"
+		for child: Node in organism_container.get_children():
+			if not child.is_queued_for_deletion():
+				actual_count += 1
+
+	# Update labels (one number: the counter is exact now that die() queues the free first)
+	population_label.text = "Population: " + str(population_count)
 	generation_label.text = "Generation: " + str(current_generation)
 	
 	# Update the population graph
@@ -178,9 +200,10 @@ func update_ui():
 		population_graph.update_population(population_count)
 	if allele_graph != null:
 		allele_graph.set_births(births)
-	
+		allele_graph.set_deaths(deaths)
+
 	# Debug: Print discrepancy if any
-	if population_count != actual_count:
+	if Organism.DEBUG and population_count != actual_count:
 		print("WARNING: Population count mismatch! Counted: ", population_count, " Actual: ", actual_count)
 
 func update_population_data():
@@ -201,6 +224,7 @@ func update_population_data():
 	if allele_graph != null:
 		allele_graph.sample(get_live_genotypes())
 		allele_graph.set_births(births)
+		allele_graph.set_deaths(deaths)
 
 # Drawing is now handled by the PopulationGraph node
 
@@ -230,6 +254,21 @@ func _read_env_settings() -> void:
 		GameConfig.reproduction_mode = GameConfig.ReproductionMode.ASEXUAL
 	elif mode_text == "sexual":
 		GameConfig.reproduction_mode = GameConfig.ReproductionMode.SEXUAL
+	# Environment controls from env vars (screenshot gate and quick experiments)
+	match OS.get_environment("EVO_HABITAT").to_lower():
+		"grass":
+			GameConfig.habitat = Ecology.Habitat.GRASS
+		"sand":
+			GameConfig.habitat = Ecology.Habitat.SAND
+		"rock":
+			GameConfig.habitat = Ecology.Habitat.ROCK
+	if OS.get_environment("EVO_HAWKS") != "":
+		GameConfig.hawks_on = OS.get_environment("EVO_HAWKS") == "1"
+	if OS.get_environment("EVO_LABELS") != "":
+		GameConfig.show_labels = OS.get_environment("EVO_LABELS") == "1"
+	if OS.get_environment("EVO_FOOD_INTERVAL").is_valid_float():
+		GameConfig.food_spawn_interval = OS.get_environment("EVO_FOOD_INTERVAL").to_float()
+	_inspect_in_shot = OS.get_environment("EVO_INSPECT") == "1"
 	_shot_path = OS.get_environment("EVO_SHOT")
 	if _shot_path != "":
 		var secs: String = OS.get_environment("EVO_SECONDS")
@@ -251,6 +290,56 @@ func _setup_genetics_controls() -> void:
 	mutation_slider.value_changed.connect(_on_mutation_changed)
 	_update_mutation_label()
 
+## Environment controls: food, ground, hawks, labels. They write GameConfig and apply at once.
+func _setup_environment_controls() -> void:
+	food_slider.min_value = 0.0
+	food_slider.max_value = 1.0
+	food_slider.step = 0.01
+	food_slider.set_value_no_signal(Ecology.slider_from_food_interval(GameConfig, GameConfig.food_spawn_interval))
+	food_slider.value_changed.connect(_on_food_changed)
+	_update_food_label()
+	habitat_option.clear()
+	for habitat: int in Ecology.Habitat.values():
+		habitat_option.add_item(Ecology.habitat_name(habitat), habitat)
+	habitat_option.select(habitat_option.get_item_index(GameConfig.habitat))
+	habitat_option.item_selected.connect(_on_habitat_selected)
+	hawks_check.set_pressed_no_signal(GameConfig.hawks_on)
+	hawks_check.toggled.connect(_on_hawks_toggled)
+	labels_check.set_pressed_no_signal(GameConfig.show_labels)
+	labels_check.toggled.connect(_on_labels_toggled)
+	# The Environment child is ready before this node reads EVO_* settings, so re-apply them now
+	var env_node: Node = get_node("Environment")
+	env_node.apply_habitat()
+	env_node.set_food_interval(GameConfig.food_spawn_interval)
+
+func _on_food_changed(value: float) -> void:
+	var interval: float = Ecology.food_interval_from_slider(GameConfig, value)
+	if environment != null:
+		environment.set_food_interval(interval)
+	else:
+		GameConfig.food_spawn_interval = interval
+	_update_food_label()
+
+func _update_food_label() -> void:
+	food_label.text = "Food: " + Ecology.food_word(GameConfig.food_spawn_interval)
+
+func _on_habitat_selected(index: int) -> void:
+	var habitat: int = habitat_option.get_item_id(index)
+	if environment != null:
+		environment.set_habitat(habitat)
+	else:
+		GameConfig.habitat = habitat
+
+func _on_hawks_toggled(on: bool) -> void:
+	GameConfig.hawks_on = on
+
+func _on_labels_toggled(on: bool) -> void:
+	GameConfig.show_labels = on
+	for node: Node in get_tree().get_nodes_in_group("organisms"):
+		var org: Organism = node as Organism
+		if org != null:
+			org.set_labels_visible(on)
+
 func _on_mode_selected(index: int) -> void:
 	# Applies to future births only
 	GameConfig.reproduction_mode = mode_option.get_item_id(index) as GameConfig.ReproductionMode
@@ -263,6 +352,14 @@ func _update_mutation_label() -> void:
 	mutation_label.text = "Mutation: %d%%" % int(round(GameConfig.mutation_rate * 100.0))
 
 func _save_screenshot_and_quit() -> void:
+	if _inspect_in_shot:
+		for child: Node in organism_container.get_children():
+			var org: Organism = child as Organism
+			if org != null and org.current_state == "adult" and not org.is_queued_for_deletion():
+				inspector.select(org)
+				break
+		await get_tree().process_frame
+		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img: Image = get_viewport().get_texture().get_image()
 	var err: int = img.save_png(_shot_path)

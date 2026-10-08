@@ -16,6 +16,7 @@ var _history: Dictionary = {}
 var _samples: int = 0
 var _genotypes: Array[Dictionary] = []
 var _births: Dictionary = {"mating": 0, "self": 0, "clone": 0}
+var _deaths: Dictionary = {"starved": 0, "eaten": 0, "hawk": 0}
 
 
 func _ready() -> void:
@@ -60,6 +61,11 @@ func sample(genotypes: Array[Dictionary]) -> void:
 
 func set_births(births: Dictionary) -> void:
 	_births = births
+	queue_redraw()
+
+
+func set_deaths(deaths: Dictionary) -> void:
+	_deaths = deaths
 	queue_redraw()
 
 
@@ -138,3 +144,9 @@ func _draw() -> void:
 	_text(Vector2(8.0, by + 17.0), "Matings: %d" % int(_births.get("mating", 0)))
 	_text(Vector2(8.0, by + 34.0), "Self-fertilized: %d" % int(_births.get("self", 0)))
 	_text(Vector2(8.0, by + 51.0), "Clones: %d" % int(_births.get("clone", 0)))
+
+	# Deaths by cause
+	_text(Vector2(8.0, by + 76.0), "Deaths so far", FONT_SIZE, Color(0.8, 0.8, 0.8))
+	_text(Vector2(8.0, by + 93.0), "Starved: %d" % int(_deaths.get("starved", 0)))
+	_text(Vector2(8.0, by + 110.0), "Eaten by cannibals: %d" % int(_deaths.get("eaten", 0)))
+	_text(Vector2(8.0, by + 127.0), "Hawks: %d" % int(_deaths.get("hawk", 0)))

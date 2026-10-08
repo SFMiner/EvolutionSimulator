@@ -11,15 +11,30 @@ func _ready():
 	food_spawn_timer.wait_time = GameConfig.food_spawn_interval
 	food_spawn_timer.timeout.connect(_on_food_spawn_timer_timeout)
 	food_spawn_timer.start()
+	apply_habitat()
 	
 	# Spawn initial food to prevent starvation
 	spawn_initial_food()
+
+## Habitat control: store it in GameConfig and recolor the arena.
+func set_habitat(habitat: int) -> void:
+	GameConfig.habitat = habitat
+	apply_habitat()
+
+func apply_habitat() -> void:
+	$Background.color = Ecology.habitat_color(GameConfig.habitat)
+
+## Food control: seconds between food spawns, applied immediately.
+func set_food_interval(seconds: float) -> void:
+	GameConfig.food_spawn_interval = seconds
+	food_spawn_timer.wait_time = seconds
 
 func spawn_initial_food():
 	# Spawn a few food items at the start to prevent initial starvation
 	for i in range(GameConfig.food_initial):
 		spawn_food()
-	print("Spawned ", GameConfig.food_initial, " initial food items")
+	if Organism.DEBUG:
+		print("Spawned ", GameConfig.food_initial, " initial food items")
 
 func _on_food_spawn_timer_timeout():
 	spawn_food()
