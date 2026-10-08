@@ -150,3 +150,4 @@ func _draw() -> void:
 	_text(Vector2(8.0, by + 93.0), "Starved: %d" % int(_deaths.get("starved", 0)))
 	_text(Vector2(8.0, by + 110.0), "Eaten by cannibals: %d" % int(_deaths.get("eaten", 0)))
 	_text(Vector2(8.0, by + 127.0), "Hawks: %d" % int(_deaths.get("hawk", 0)))
+	_text(Vector2(8.0, by + 144.0), "Old age: %d" % int(_deaths.get("old_age", 0)))

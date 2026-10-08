@@ -28,6 +28,28 @@ const HABITAT_COLORS: Dictionary = {
 const DEATH_STARVED: String = "starved"
 const DEATH_EATEN: String = "eaten"
 const DEATH_HAWK: String = "hawk"
+const DEATH_OLD_AGE: String = "old_age"
+
+
+## Plant meals per second a lizard of this metabolism needs to just break even at full size
+## (drain / (meal multiplier x meal energy)). Must be ordered low < medium < high.
+static func break_even_intake(cfg: Node, metabolism: String) -> float:
+	var rates: Dictionary = cfg.energy_depletion_rates
+	var drain: float = float(rates.get(metabolism, 0.0))
+	var meal: float = float(cfg.food_energy_value) * meal_multiplier(cfg, metabolism, false)
+	return drain / maxf(meal, 0.0001)
+
+
+## Seconds of life after hatching: lifespan_seconds times a random factor from the lizard's rng.
+static func roll_lifespan(cfg: Node, rng: RandomNumberGenerator) -> float:
+	var spread: float = float(cfg.lifespan_spread)
+	return float(cfg.lifespan_seconds) * rng.randf_range(1.0 - spread, 1.0 + spread)
+
+
+## True if there is room for a new egg (live = eggs + juveniles + adults; cap <= 0 means no cap).
+static func can_lay(cfg: Node, live_count: int) -> bool:
+	var cap: int = int(cfg.space_cap)
+	return cap <= 0 or live_count < cap
 
 
 ## Multiplier on the energy of a plant meal: metabolism pays off, cannibals digest plants poorly.

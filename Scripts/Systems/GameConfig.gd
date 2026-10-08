@@ -43,7 +43,8 @@ var hawks_on: bool = false
 var hawk_risk: float = 0.006
 var hawk_camouflage_factor: float = 0.05
 ## Metabolism pays: plant meal energy is multiplied by this (applies to adult and juvenile meals).
-var meal_multiplier_by_metabolism: Dictionary = {"low": 0.55, "medium": 1.0, "high": 1.9}
+## Invariant (tested): break-even intake drain / (multiplier x meal) is ordered low < medium < high.
+var meal_multiplier_by_metabolism: Dictionary = {"low": 0.7, "medium": 1.0, "high": 1.4}
 ## Speed costs: extra energy per second (times body scale).
 var speed_upkeep_by_speed: Dictionary = {"slow": 0.0, "medium": 0.4, "fast": 0.9}
 ## Cannibals digest plants badly: multiplier on plant meal energy (prey energy is unchanged).
@@ -52,6 +53,16 @@ var cannibal_plant_efficiency: float = 0.6
 var cannibalism_enabled: bool = true
 ## Running counters for the selection experiment (plant meals, cannibal kills by prey stage).
 var diag: Dictionary = {"plant_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
+# === SPACE AND LIFE HISTORY (see Docs/Space and Life History.md) ===
+## No new eggs while eggs + juveniles + adults >= space_cap ("no room for new nests"). 0 = no cap.
+var space_cap: int = 0
+## Range of the Space slider; the notch above space_cap_max means "No limit" (space_cap = 0).
+var space_cap_min: int = 15
+var space_cap_max: int = 60
+var space_slider_no_limit: int = 65
+## Seconds from hatching to old age, times a random factor 1 +/- lifespan_spread (not heritable).
+var lifespan_seconds: float = 150.0
+var lifespan_spread: float = 0.2
 ## Show the per-lizard energy number and gene tags.
 var show_labels: bool = false
 

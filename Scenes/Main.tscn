@@ -104,6 +104,16 @@ theme_override_font_sizes/font_size = 12
 text = "Plenty"
 horizontal_alignment = 2
 
+[node name="SpaceLabel" type="Label" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+text = "Space: no limit"
+
+[node name="SpaceSlider" type="HSlider" parent="UI/ControlPanel/VBoxContainer"]
+layout_mode = 2
+min_value = 15.0
+max_value = 65.0
+value = 65.0
+
 [node name="HabitatRow" type="HBoxContainer" parent="UI/ControlPanel/VBoxContainer"]
 layout_mode = 2
 

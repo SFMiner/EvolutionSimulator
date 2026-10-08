@@ -79,6 +79,10 @@ func _run() -> void:
 		_config.meal_multiplier_by_metabolism = {"low": meal_text[0].to_float(), "medium": meal_text[1].to_float(), "high": meal_text[2].to_float()}
 	if OS.get_environment("EXP_CANNIBALS") != "":
 		_config.cannibalism_enabled = OS.get_environment("EXP_CANNIBALS") != "0"
+	if OS.get_environment("EXP_SPACE").is_valid_int():
+		_config.space_cap = OS.get_environment("EXP_SPACE").to_int()  # 0 = no cap
+	if OS.get_environment("EXP_LIFESPAN").is_valid_float():
+		_config.lifespan_seconds = OS.get_environment("EXP_LIFESPAN").to_float()
 	if OS.get_environment("EXP_FOUNDERS").is_valid_int():
 		_config.founder_count = OS.get_environment("EXP_FOUNDERS").to_int()
 	var seeds: Array[int] = []
@@ -99,11 +103,12 @@ func _run() -> void:
 		quit(0)
 		return
 
-	_emit("EXP config: founders=%d food_interval=%.3f food_max=%d seconds=%.0f scale=%.1f seeds=%s fps=%d habitat=%d hawks=%s hawk_risk=%.4f cannibal_eff=%.2f upkeep=%s meal_mult=%s" % [
+	_emit("EXP config: founders=%d food_interval=%.3f food_max=%d seconds=%.0f scale=%.1f seeds=%s fps=%d habitat=%d hawks=%s hawk_risk=%.4f cannibal_eff=%.2f upkeep=%s meal_mult=%s space=%d lifespan=%.0f" % [
 			int(_config.founder_count), float(_config.food_spawn_interval), int(_config.food_max),
 			_seconds, _scale, str(seeds), Engine.max_fps, int(_config.habitat), str(_config.hawks_on),
 			float(_config.hawk_risk), float(_config.cannibal_plant_efficiency),
-			str(_config.speed_upkeep_by_speed), str(_config.meal_multiplier_by_metabolism)])
+			str(_config.speed_upkeep_by_speed), str(_config.meal_multiplier_by_metabolism),
+			int(_config.space_cap), float(_config.lifespan_seconds)])
 	for mode_name: String in modes:
 		var results: Array[Dictionary] = []
 		for seed_value: int in seeds:
@@ -175,12 +180,17 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 	var sum2: float = 0.0
 	var min2: int = 1000000
 	var max2: int = 0
+	var at_cap: int = 0
+	var cap: int = int(_config.space_cap)
 	for i: int in range(half, pops.size()):
 		sum2 += float(pops[i])
+		if cap > 0 and pops[i] >= cap:
+			at_cap += 1
 		min2 = mini(min2, pops[i])
 		max2 = maxi(max2, pops[i])
 	var meals_2: int = int(_config.diag["plant_meals"]) - meals_at_half
 	var result: Dictionary = {
+		"cap_frac": float(at_cap) / maxf(1.0, float(pops.size() - half)),
 		"meals_per_lizard_s": float(meals_2) / maxf(1.0, sum2) if sum2 > 0.0 else -1.0,
 		"kills": (_config.diag as Dictionary).duplicate(),
 		"traj": traj,
@@ -293,7 +303,8 @@ func _report(mode_name: String, all_results: Array[Dictionary]) -> void:
 ## Per-capita diagnostics over all runs: meals per lizard-second (2nd half), cannibal kills by prey stage, deaths by cause.
 func _report_diag(results: Array[Dictionary]) -> void:
 	var meals: Array[float] = []
-	var causes: Array[String] = ["starved", "eaten", "hawk"]
+	var causes: Array[String] = ["starved", "eaten", "hawk", "old_age"]
+	var cap_fracs: Array[float] = []
 	var stages: Array[String] = ["kill_egg", "kill_juvenile", "kill_adult"]
 	var cause_vals: Dictionary = {}
 	var stage_vals: Dictionary = {}
@@ -303,6 +314,7 @@ func _report_diag(results: Array[Dictionary]) -> void:
 		stage_vals[key] = [] as Array[float]
 	var young_share: Array[float] = []
 	for r: Dictionary in results:
+		cap_fracs.append(float(r["cap_frac"]))
 		var mpl: float = float(r["meals_per_lizard_s"])
 		if mpl >= 0.0:
 			meals.append(mpl)
@@ -318,6 +330,7 @@ func _report_diag(results: Array[Dictionary]) -> void:
 			young_share.append((float(kills.get("kill_egg", 0)) + float(kills.get("kill_juvenile", 0))) / total_kills)
 	_emit("EXP per-capita: plant meals per lizard-second (2nd half) mean=%.4f sd=%.4f (= one meal per %.1f s)" % [
 			_mean(meals), _sd(meals), 1.0 / maxf(_mean(meals), 0.00001)])
+	_emit("EXP time at the space cap (2nd half, population >= cap; 0 if no cap) mean=%.3f sd=%.3f" % [_mean(cap_fracs), _sd(cap_fracs)])
 	var cause_line: PackedStringArray = PackedStringArray()
 	for key: String in causes:
 		cause_line.append("%s %.0f (sd %.0f)" % [key, _mean(cause_vals[key] as Array[float]), _sd(cause_vals[key] as Array[float])])

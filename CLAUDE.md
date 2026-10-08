@@ -66,10 +66,18 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   trace of extinct runs). The report prints sd and `z` = (end mean - start mean) / sd across seeds. It now takes ~1-2 min
   for 10 seeds x 600 s (prints gated off); 14 processes in parallel on a 16-core box is fine.
   Runs that share an output file append to it: kill old processes before rerunning with the same `EXP_OUT`.
-- Why the environment effects are weaker than the spec guessed: food only sets the population SIZE (population is
-  food-limited, ~45 at Plenty, ~30 default, ~20 Scarce), not how often one lizard eats (about one meal per 12 s at every
-  level), so the break-even for metabolism barely moves with food. Drift at N of 20-30 is large (sd 0.2-0.3 across seeds),
-  so a trait must move the mean by 0.4-0.6 to count as 2 sd. A real flip needs a population cap (`GameConfig.max_organisms`
-  exists but is unused) so Plenty leaves food surplus; the spec said not to add mechanics, so that was not done.
-- Extinction: ~3% of default runs and ~10% of hawk or Scarce runs go extinct (drift at small N, and fast lizards fixing
-  the upkeep cost shrinks N). Scarce interval 0.5 is the lowest food level that mostly survives; 0.6-0.7 loses 15%.
+- Space cap + old age (spec `Docs/Space and Life History.md`): `GameConfig.space_cap` DEFAULTS TO 0 = NO LIMIT (decision 2026-10-08).
+  When set, it stops `Organism.reproduce()` at eggs + juveniles + adults >= cap (`Ecology.can_lay`). The Space slider is 15-60 plus a
+  "No limit" notch at 65 (`space_slider_no_limit`). `lifespan_seconds` 150 x 0.8-1.2 is rolled at hatch (`Ecology.DEATH_OLD_AGE`);
+  shorter lives (60-90 s) make the founder cohort die together and 20-50% of runs go extinct. Experiment env: `EXP_SPACE`
+  (0 = no cap), `EXP_LIFESPAN`. Multipliers 0.7 / 1.0 / 1.4 (break-even 0.048 / 0.067 / 0.071 must stay ordered).
+- THE METABOLISM ALLELE DOES NOT FLIP WITH FOOD, and we stopped trying (decision 2026-10-08). No limit, sexual, 10 seeds x 600 s:
+  `M` Scarce 0.5 s 0.49 to 0.18 (z -1.6), Default 0.37 (z -0.6), Plenty 0.46 (z -0.2). Why: the population grows until each lizard
+  gets about one meal per 10 s (its break-even) at every food level, so the type needing least food (`m`) wins; a cap does not
+  create a surplus (lizards eat when full). Teaching story and numbers: README "Selection pressures". Speed rises with food
+  (Plenty `S` 0.88, z +4.4) and color flips with hawks plus ground. Do not add mechanics to force the metabolism flip.
+- Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
+- Extinction: 0-2 of 10 in default/Plenty runs and 1-4 of 10 in Scarce or hawk runs, varying run to run with the same settings
+  (e.g. Scarce 0.4 s: 0 of 20 once, 2 of 10 the next; 0.45 s: 6 of 20). A slow collapse starts when mating partners and young are
+  eaten or starve after a cohort dies together. Scarce 0.4 s is the mildest "Scarce" that mostly survives (UI word "normal"); 0.5 s
+  is "low" and loses 2-4 of 10.

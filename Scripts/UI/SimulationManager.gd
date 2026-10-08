@@ -12,6 +12,8 @@ var environment: Node2D
 @onready var food_label: Label = $UI/ControlPanel/VBoxContainer/FoodLabel
 @onready var food_slider: HSlider = $UI/ControlPanel/VBoxContainer/FoodSlider
 @onready var habitat_option: OptionButton = $UI/ControlPanel/VBoxContainer/HabitatRow/HabitatOption
+@onready var space_label: Label = $UI/ControlPanel/VBoxContainer/SpaceLabel
+@onready var space_slider: HSlider = $UI/ControlPanel/VBoxContainer/SpaceSlider
 @onready var hawks_check: CheckButton = $UI/ControlPanel/VBoxContainer/HawksCheck
 @onready var labels_check: CheckButton = $UI/ControlPanel/VBoxContainer/LabelsCheck
 @onready var inspector: PanelContainer = $UI/Inspector
@@ -37,7 +39,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var births: Dictionary = {"mating": 0, "self": 0, "clone": 0}
 var extinct_at: float = -1.0
 # Deaths by cause (Ecology.DEATH_*), shown under the births in the stats panel
-var deaths: Dictionary = {"starved": 0, "eaten": 0, "hawk": 0}
+var deaths: Dictionary = {"starved": 0, "eaten": 0, "hawk": 0, "old_age": 0}
 
 const HAWK_STRIKE: GDScript = preload("res://Scripts/Environment/HawkStrike.gd")
 
@@ -192,7 +194,10 @@ func update_ui():
 				actual_count += 1
 
 	# Update labels (one number: the counter is exact now that die() queues the free first)
-	population_label.text = "Population: " + str(population_count)
+	if int(GameConfig.space_cap) > 0:
+		population_label.text = "Population: %d / %d" % [population_count, int(GameConfig.space_cap)]
+	else:
+		population_label.text = "Population: " + str(population_count)
 	generation_label.text = "Generation: " + str(current_generation)
 	
 	# Update the population graph
@@ -268,6 +273,8 @@ func _read_env_settings() -> void:
 		GameConfig.show_labels = OS.get_environment("EVO_LABELS") == "1"
 	if OS.get_environment("EVO_FOOD_INTERVAL").is_valid_float():
 		GameConfig.food_spawn_interval = OS.get_environment("EVO_FOOD_INTERVAL").to_float()
+	if OS.get_environment("EVO_SPACE").is_valid_int():
+		GameConfig.space_cap = OS.get_environment("EVO_SPACE").to_int()
 	_inspect_in_shot = OS.get_environment("EVO_INSPECT") == "1"
 	_shot_path = OS.get_environment("EVO_SHOT")
 	if _shot_path != "":
@@ -303,6 +310,13 @@ func _setup_environment_controls() -> void:
 		habitat_option.add_item(Ecology.habitat_name(habitat), habitat)
 	habitat_option.select(habitat_option.get_item_index(GameConfig.habitat))
 	habitat_option.item_selected.connect(_on_habitat_selected)
+	space_slider.min_value = float(GameConfig.space_cap_min)
+	space_slider.max_value = float(GameConfig.space_slider_no_limit)
+	space_slider.step = 1.0
+	var start_notch: int = int(GameConfig.space_cap) if int(GameConfig.space_cap) > 0 else int(GameConfig.space_slider_no_limit)
+	space_slider.set_value_no_signal(float(start_notch))
+	space_slider.value_changed.connect(_on_space_changed)
+	_update_space_label()
 	hawks_check.set_pressed_no_signal(GameConfig.hawks_on)
 	hawks_check.toggled.connect(_on_hawks_toggled)
 	labels_check.set_pressed_no_signal(GameConfig.show_labels)
@@ -322,6 +336,21 @@ func _on_food_changed(value: float) -> void:
 
 func _update_food_label() -> void:
 	food_label.text = "Food: " + Ecology.food_word(GameConfig.food_spawn_interval)
+
+## Applies at once. Lowering it below the population only stops egg-laying; nobody is killed to fit.
+func _on_space_changed(value: float) -> void:
+	if int(value) >= int(GameConfig.space_slider_no_limit):
+		GameConfig.space_cap = 0
+	else:
+		GameConfig.space_cap = int(value)
+	_update_space_label()
+	update_ui()
+
+func _update_space_label() -> void:
+	if int(GameConfig.space_cap) <= 0:
+		space_label.text = "Space: no limit"
+	else:
+		space_label.text = "Space: %d lizards" % int(GameConfig.space_cap)
 
 func _on_habitat_selected(index: int) -> void:
 	var habitat: int = habitat_option.get_item_id(index)

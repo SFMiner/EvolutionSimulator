@@ -93,20 +93,22 @@ evolution-simulator/
 1. **Egg Stage**: Organisms start as eggs (white sprites, 20% scale, stationary)
 2. **Juvenile Stage**: After growth timer, become juveniles (yellow sprites, gradually scaling from 20% to 100%, animated movement)
 3. **Adult Stage**: After second growth timer, become adults (colored based on genetics, 100% scale, animated movement)
-4. **Death**: Occurs when energy reaches zero
+4. **Death**: Occurs when energy reaches zero, when a cannibal or hawk catches the lizard, or at old age
 
 ### Energy System
 - Energy depletes every second based on metabolism trait
 - Low metabolism: 1.0 energy/second
 - Medium metabolism: 2.0 energy/second  
 - High metabolism: 3.0 energy/second
-- Eating food restores 30 energy times the metabolism multiplier (low 0.55, medium 1.0, high 1.9), times 0.6 for cannibals
+- Eating food restores 30 energy times the metabolism multiplier (low 0.7, medium 1.0, high 1.4), times 0.6 for cannibals. Break-even meals per second (drain / multiplier / 30) are ordered low 0.048 < medium 0.067 < high 0.071, so thrifty lizards need the fewest meals (tested in `test_ecology.gd`)
+- Old age: each lizard lives `lifespan_seconds` (150) x a random 0.8-1.2 from hatching (eggs do not age, not heritable), then dies of old age
 - Fast lizards pay an extra upkeep per second (slow 0, medium 0.4, fast 0.9, scaled by body size)
 - With Hawks on, each juvenile or adult has a 0.6% per second chance of being caught, 5% of that when its color matches the ground
 - Maximum energy is 100
 
 ### Reproduction
 - Adults with 80+ energy can reproduce
+- Space cap (`GameConfig.space_cap`, default 0 = no limit; Space slider 15-60 plus a "No limit" notch at the right end): when set, while eggs + juveniles + adults >= the cap, no new eggs are laid (no mating, selfing or cloning: "no room for new nests"). Lowering the slider never kills anyone
 - Reproduction costs 20 energy points
 - Sexual (default): the nearest other ready adult within 90 px is the mate; the offspring is a cross of both parents' genes. The initiator pays 20 energy, the partner 5.
 - No mate nearby: keep the energy and retry; after 20 s of waiting the organism self-fertilizes.
@@ -155,25 +157,37 @@ evolution-simulator/
 - [x] Allele-frequency graph with locus selector, genotype counts and birth stats
 - [x] Tests in `tests/` (genetics, reproduction hooks, sim smoke) and `tests/run_all_tests.sh`
 - [x] Screenshot gate `EVO_SHOT`
-- [x] Ecology tuned for selection: 24 founders, food 0.35 s / cap 150, ecology numbers centralized in `GameConfig`; before the trade-offs population settled ~70-80; with them it settles ~30 at the default food (Plenty ~45, Scarce ~20)
+- [x] Ecology tuned for selection: 24 founders, food 0.35 s / cap 150, ecology numbers centralized in `GameConfig`; before the trade-offs population settled ~70-80; with them it settles ~30 at the default food (no space limit: Plenty ~40, Scarce ~22)
 - [x] `tests/experiment_selection.gd`: seeded multi-run allele-frequency experiment + frame-time benchmark (see CLAUDE.md)
 - [x] `Organism.die()` guard against double death (population counter was undercounting)
 - [x] Trade-offs and environment (spec: `Docs/Trade-offs and Environment.md`): metabolism pays more per meal, speed has an upkeep, cannibals digest plants badly, color is camouflage against hawks
 - [x] Environment controls: Food slider, Ground (Grass / Sand / Rock), Hawks on/off; deaths counted by cause (starved / eaten / hawks)
 - [x] `Ecology.gd` holds the pure rules; `tests/test_ecology.gd` tests them
 - [x] Display fixes: labels hidden by default ("Show labels" checkbox), whole-number energy, metabolism tag fixed, click-to-inspect box, one population number, food drawn in code, arena and panels no longer overlap (window 1200x648), debug prints gated by `DEBUG`
-- [ ] Not every expected selection direction is reached (see the table below): metabolism at Plenty and `m` at Scarce are weaker than 2 sd, `k` never rises under Scarce, Grass/Sand camouflage is weaker than 2 sd
+- [x] Space cap, old age and the metabolism retune (spec: `Docs/Space and Life History.md`): Space slider (15-60 plus "No limit", the default), "Population: n" or "n / cap", old-age deaths, inspector age, break-even ordering test, capped smoke run, `EXP_SPACE` / `EXP_LIFESPAN`
+- [x] Decision: the metabolism allele is not made to flip with food. Thrifty `m` wins when food is short; at Plenty `M` stays near 0.5 (it never wins). Teaching story in "Selection pressures" below
+- [x] Color flips with the environment (Hawks on: the color matching the ground rises; z +1.6 on Grass, +1.7 on Sand, +1.2 on Rock; none reaches 2 sd)
+- [ ] Extinction in 0-3 of 10 runs (no limit: Default 2, Plenty 0, Scarce 0.5 s 2, hawks 0-3); target none / at most 1 is not met at Default, Scarce or on Grass/Sand with hawks
 - [ ] Mate-seeking movement (out of scope by design)
 - [ ] Speed-up control in the UI (only pause exists; the gate uses `Engine.time_scale`)
 
 ### Selection pressures (measured: sexual mode, 10 seeds x 600 sim-s per row; mean allele frequency at the end, start about 0.5 for M/S/K; z = (end - start) / sd across seeds; see CLAUDE.md for how to rerun)
 | Trait | Cost / benefit in the code | Result |
 |---|---|---|
-| Metabolism | high drains 3/s vs low 1/s; a meal is worth x0.55 / 1.0 / 1.9 (low / medium / high) | Plenty: `M` 0.75 (z +1.2, direction right but under 2 sd). Default: `M` 0.60 (z +0.5), so no fixation. Scarce: `M` 0.23 (z -1.8, just under 2 sd) |
-| Speed | fast 60 px/s vs slow 20; upkeep 0 / 0.4 / 0.9 energy per second | Opposite to the first guess: `S` rises when food is plentiful (0.87, z +5.1) and stays about even when scarce (0.51, z +0.2). Default 0.75 (z +1.8). Fast lizards get food first, but the upkeep matters most when food is short |
-| Growth rate | fast hatches in 4 s and needs 3 meals; slow gets 2x juvenile energy per meal but needs 8 | the balanced trade-off: no consistent winner (`G` drifts down a little in several runs, z -1.9 to -0.2) |
-| Color | camouflage against hawks: risk 0.6%/s, x0.05 when the color matches the ground | Hawks on: Rock `Cy` 0.89 (z +3.8, pass); Grass `Cg` 0.48 (z +1.7); Sand `Cb` 0.45 (z +1.2). Right direction everywhere, but Grass and Sand are under 2 sd. Hawks off: drift (`Cb` +0.0..+0.3 z) |
-| Cannibal | eats organisms <= half its size for their energy; x0.6 energy from plants | `K` (non-cannibal) rises in every environment, z +2.7 at Plenty, +1.5 Scarce, +1.1 Default. Cannibals are never favored, even when food is scarce (expected `k` there) |
+| Metabolism | high drains 3/s vs low 1/s; a meal is worth x0.7 / 1.0 / 1.4 (low / medium / high); no space limit, lifespan 150 s | Thrifty `m` wins when food is short: Scarce 0.5 s `M` 0.49 to 0.18 (z -1.6, 8 surviving runs). Default `M` 0.37 (z -0.6) and Scarce 0.4 s 0.35 (z -0.6) lean the same way; at Plenty `M` stays near the start (0.46, z -0.2). It does NOT flip to `M` at Plenty: the population grows until each lizard is back to break-even (about one meal per 10 s at every food level), and the type that needs the least food wins. Asexual (5 seeds): Default `M` 0.58, Plenty 0.43, Scarce 0.42, all within drift |
+| Speed | fast 60 px/s vs slow 20; upkeep 0 / 0.4 / 0.9 energy per second | Fast wins when food is plentiful: Plenty `S` 0.88 (z +4.4), Default 0.75 (z +1.4), Scarce 0.4 s 0.58 (z +0.3), Scarce 0.5 s 0.43 (z -0.3). Asexual (5 seeds) is stronger: `S` 0.89 Default, 0.91 Plenty, 0.87 Scarce. Faster rises with food, but slow never clearly wins even when food is short |
+| Growth rate | fast hatches in 4 s and needs 3 meals; slow gets 2x juvenile energy per meal but needs 8 | Slow-growing `g` tends to win with no space limit: `G` 0.27 at Plenty (z -1.3), 0.38 Default (z -0.4), 0.16 Scarce 0.5 s (z -2.3). Asexual `G` falls to 0.05 in all three. Treat it as a lean, not a flip |
+| Color | camouflage against hawks: risk 0.6%/s, x0.05 when the color matches the ground | This is the trait that flips with the environment. Hawks on: Grass `Cg` 0.25 to 0.62 (z +1.6; `Cy` falls to 0.20, z -2.7); Sand `Cb` 0.15 to 0.50 (z +1.7); Rock `Cy` 0.59 to 0.80 (z +1.2). Right color rises on every ground, none reaches 2 sd because 24 founders drift a lot. Hawks off (Default): drift (`Cb` +0.5, `Cg` +0.2, `Cy` -0.7 z) |
+| Cannibal | eats organisms <= half its size for their energy; x0.6 energy from plants | `K` (non-cannibal) rises almost everywhere: Plenty 0.83 (z +4.7), Default 0.75 (z +1.9), Scarce 0.4 s 0.75 (z +2.2), Scarce 0.5 s 0.61 (z +0.2, 2 extinctions); hawks runs z +1.0 to +3.4. Cannibals are never favored |
+
+Populations (2nd-half mean, no space limit): Plenty 40, Default 27, Scarce 0.4 s 24, Scarce 0.5 s 22 (more food makes more lizards, not better-fed ones: plant meals per lizard-second stay at 0.09-0.11, one meal per 9-11 s, at every food level). Extinctions out of 10 sexual runs: Default 2, Plenty 0, Scarce 0.4 s 1, Scarce 0.5 s 2, Hawks on Grass 2 / Sand 3 / Rock 0. Rows are the mean over surviving runs; the sd and z are across those runs, so z moves a lot between repeats (an earlier Scarce 0.5 s repeat gave `M` z -3.8).
+
+What to teach with it:
+1. Thrifty metabolism `m` wins when food is short.
+2. More food makes more lizards, not better-fed ones.
+3. Color is the trait that flips with the environment (hawks plus the ground color).
+4. The Space slider is the carrying capacity. It is optional (the default is no limit); capping it mainly changes the population size (a cap of 28 also weakened the Scarce `m` result, so leave it off for that lesson).
+5. Metabolism does NOT flip to `M` at Plenty, because the population grows until each lizard is back to break-even and the type that needs the least food wins.
 
 ### 🔄 Next Steps (Phase 2)
 - Camera controls for observation (pan/zoom)
@@ -195,9 +209,9 @@ Key parameters can be adjusted in `Scripts/Systems/GameConfig.gd`:
 
 ```gdscript
 var energy_depletion_rates = {
-    "low": 1.0,
-    "medium": 2.0, 
-    "high": 3.0
+	"low": 1.0,
+	"medium": 2.0, 
+	"high": 3.0
 }
 
 var founder_count = 24
@@ -210,7 +224,9 @@ var mutation_rate = 0.05
 var mate_radius = 90.0
 
 # Trade-offs and environment
-var meal_multiplier_by_metabolism = {"low": 0.55, "medium": 1.0, "high": 1.9}
+var meal_multiplier_by_metabolism = {"low": 0.7, "medium": 1.0, "high": 1.4}
+var space_cap = 0                   # 0 = no cap (default)
+var lifespan_seconds = 150.0        # times a random 0.8-1.2 per lizard
 var speed_upkeep_by_speed = {"slow": 0.0, "medium": 0.4, "fast": 0.9}
 var cannibal_plant_efficiency = 0.6
 var hawk_risk = 0.006               # per second, when hawks are on

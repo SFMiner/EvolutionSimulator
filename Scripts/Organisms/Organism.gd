@@ -35,6 +35,9 @@ var current_state: String = "egg"
 ## Why this lizard died (Ecology.DEATH_*); set in die().
 var death_cause: String = ""
 var generation: int = 1
+## Seconds lived since hatching, and the lifespan rolled at hatch (0 until then; eggs don't age).
+var age: float = 0.0
+var lifespan: float = 0.0
 var growth_progress: float = 0.0  # 0.0 to 1.0 for gradual growth during juvenile phase
 
 # Tables and ecology numbers come from GameConfig (single source of truth)
@@ -298,6 +301,14 @@ func _on_energy_timer_timeout():
 	if DEBUG and randf() < 0.1:  # 10% chance each energy tick
 		print("Energy depletion: base=", base_depletion_rate, " scale=", scale_factor, " total=", scaled_depletion_rate, " remaining=", energy)
 	
+	# Old age (lifespan is rolled at hatch; the tick is one second)
+	if lifespan <= 0.0:
+		lifespan = Ecology.roll_lifespan(GameConfig, rng)
+	age += energy_timer.wait_time
+	if age >= lifespan:
+		die(Ecology.DEATH_OLD_AGE)
+		return
+
 	# Check for death
 	if energy <= 0:
 		die()
@@ -314,6 +325,8 @@ func _on_growth_timer_timeout():
 		"egg":
 			current_state = "juvenile"
 			growth_progress = 0.0  # Start at 0.2 scale
+			age = 0.0
+			lifespan = Ecology.roll_lifespan(GameConfig, rng)
 			# Stop egg animation and prepare for movement
 			animation_player.stop()
 			update_sprite()
@@ -521,6 +534,14 @@ func die(cause: String = Ecology.DEATH_STARVED) -> void:
 	queue_free()
 	organism_died.emit(self)
 
+## Eggs + juveniles + adults alive right now (the space cap counts these).
+func live_count() -> int:
+	var count: int = 0
+	for node: Node in get_tree().get_nodes_in_group("organisms"):
+		if not node.is_queued_for_deletion():
+			count += 1
+	return count
+
 func is_ready_to_mate() -> bool:
 	return current_state == "adult" and energy >= reproduction_energy and !is_queued_for_deletion()
 
@@ -554,7 +575,10 @@ func reproduce() -> void:
 	# Check if we have enough energy to reproduce
 	if energy < reproduction_cost:
 		return
-	
+	# Space cap: no room for new nests (no mating, selfing or cloning); keep the energy and wait
+	if not Ecology.can_lay(GameConfig, live_count()):
+		return
+
 	var lib: GenomeLibrary = EvoGenetics.get_library()
 	var rate: float = GameConfig.mutation_rate
 	var offspring_genotype: Dictionary = {}

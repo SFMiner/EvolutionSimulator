@@ -32,6 +32,9 @@ func _run() -> void:
 	_test_hawk_risk()
 	_test_food_slider()
 	_test_labels()
+	_test_break_even()
+	_test_lifespan()
+	_test_space_cap()
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -96,6 +99,46 @@ func _test_food_slider() -> void:
 	_check(_near(back, 0.4), "slider mapping round-trips")
 	_check(Ecology.food_word(0.35) == "normal", "default interval reads as normal")
 	_check(Ecology.food_word(0.25) == "plenty" and Ecology.food_word(1.0) == "scarce", "ends read plenty and scarce")
+
+
+func _test_break_even() -> void:
+	# The metabolism trade-off only works if thrifty lizards need the fewest meals to break even
+	var low: float = Ecology.break_even_intake(_cfg, "low")
+	var med: float = Ecology.break_even_intake(_cfg, "medium")
+	var high: float = Ecology.break_even_intake(_cfg, "high")
+	_check(low > 0.0, "break-even intake is positive")
+	_check(low < med and med < high, "break-even intake ordered low < medium < high (%.4f %.4f %.4f)" % [low, med, high])
+	_check(_near(med, float(_cfg.energy_depletion_rates["medium"]) / float(_cfg.food_energy_value)), "medium break-even = drain / meal")
+
+
+func _test_lifespan() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 5
+	var lo: float = float(_cfg.lifespan_seconds) * (1.0 - float(_cfg.lifespan_spread))
+	var hi: float = float(_cfg.lifespan_seconds) * (1.0 + float(_cfg.lifespan_spread))
+	var in_range: bool = true
+	var smallest: float = INF
+	var largest: float = -INF
+	for i: int in range(500):
+		var life: float = Ecology.roll_lifespan(_cfg, rng)
+		in_range = in_range and life >= lo - 0.0001 and life <= hi + 0.0001
+		smallest = minf(smallest, life)
+		largest = maxf(largest, life)
+	_check(in_range, "lifespan stays within 0.8-1.2 of lifespan_seconds")
+	_check(largest - smallest > 0.5 * (hi - lo), "lifespans vary between lizards")
+	_check(Ecology.DEATH_OLD_AGE == "old_age", "old age death cause name")
+
+
+func _test_space_cap() -> void:
+	var saved_cap: int = int(_cfg.space_cap)
+	_cfg.space_cap = 35
+	_check(Ecology.can_lay(_cfg, 0), "can lay in an empty arena")
+	_check(Ecology.can_lay(_cfg, 34), "can lay just below the cap")
+	_check(not Ecology.can_lay(_cfg, 35), "cannot lay at the cap")
+	_check(not Ecology.can_lay(_cfg, 80), "cannot lay above the cap")
+	_cfg.space_cap = 0
+	_check(Ecology.can_lay(_cfg, 500), "cap 0 means no cap")
+	_cfg.space_cap = saved_cap
 
 
 func _test_labels() -> void:

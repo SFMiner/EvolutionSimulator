@@ -81,6 +81,10 @@ func refresh() -> void:
 	lines.append("Color: %s%s" % [str(genome.get("color", "")), " (camouflaged here)" if camo else ""])
 	lines.append("Cannibal: %s" % ("yes" if bool(genome.get("cannibal", false)) else "no"))
 	lines.append("Energy: %d   State: %s" % [int(round(_target.energy)), _target.current_state])
+	if _target.lifespan > 0.0:
+		lines.append("Age: %d s of %d" % [int(_target.age), int(round(_target.lifespan))])
+	else:
+		lines.append("Age: not hatched yet")
 	_label.text = "\n".join(lines)
 	# Follow the lizard on screen, kept inside the window
 	var screen: Vector2 = _target.get_global_transform_with_canvas().origin + BOX_OFFSET
