@@ -40,13 +40,13 @@ var food_interval_plenty: float = 0.25
 var habitat: int = 0
 var hawks_on: bool = false
 ## Chance per second that a hawk catches a lizard; multiplied by the factor when camouflaged.
-var hawk_risk: float = 0.006
+var hawk_risk: float = 0.02
 var hawk_camouflage_factor: float = 0.05
 ## Metabolism pays: plant meal energy is multiplied by this (applies to adult and juvenile meals).
 ## Invariant (tested): break-even intake drain / (multiplier x meal) is ordered low < medium < high.
 var meal_multiplier_by_metabolism: Dictionary = {"low": 0.7, "medium": 1.0, "high": 1.4}
 ## Speed costs: extra energy per second (times body scale).
-var speed_upkeep_by_speed: Dictionary = {"slow": 0.0, "medium": 0.4, "fast": 0.9}
+var speed_upkeep_by_speed: Dictionary = {"slow": 0.0, "medium": 3.5, "fast": 7.5}
 ## Cannibals digest plants badly: multiplier on plant meal energy (prey energy is unchanged).
 var cannibal_plant_efficiency: float = 0.6
 ## Diagnostic switch: false stops all cannibal predation (kk lizards just eat plants).

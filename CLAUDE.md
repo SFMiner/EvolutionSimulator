@@ -77,11 +77,12 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   "No limit" notch at 65 (`space_slider_no_limit`). `lifespan_seconds` 150 x 0.8-1.2 is rolled at hatch (`Ecology.DEATH_OLD_AGE`);
   shorter lives (60-90 s) make the founder cohort die together and 20-50% of runs go extinct. Experiment env: `EXP_SPACE`
   (0 = no cap), `EXP_LIFESPAN`. Multipliers 0.7 / 1.0 / 1.4 (break-even 0.048 / 0.067 / 0.071 must stay ordered).
-- THE METABOLISM ALLELE DOES NOT FLIP WITH FOOD (decision 2026-10-08; re-measured at a verified-invariant 8x, no limit, sexual, 10 seeds x
-  600 s). `M` falls at every food level: Default 0.49 to 0.21 (z -3.0), Plenty 0.34 (z -0.7), Scarce 0.5 s 0.35 (z -0.7). Why: the
-  population grows until each lizard gets about one meal per 9 s (its break-even), so the type needing least food (`m`) wins; a cap
-  does not create a surplus. Teaching story and numbers: README "Selection pressures". Speed `S` reaches 0.93-0.97 in every row (food
-  level does not matter) and color flips with hawks plus ground. Do not add mechanics to force the metabolism flip.
+- SPEED UPKEEP 0 / 3.5 / 7.5 (tuned 2026-10-09; sexual, 10 seeds x 600 s, no limit): `S` Plenty 0.75 (z +2.0), Default 0.48 (polymorphic),
+  Scarce 0.5 s 0.16 (z -2.6). Fast wins the race for food but pays upkeep always. Old 0.9 made fast win everywhere (0.9-0.96); upkeep up to 3
+  changed little. The flip needs fast ~7 (6: fast at Plenty, ~neutral Scarce; 8: slow at Default and Scarce). Side effect: `M` now follows
+  food too (Plenty 0.78 z +2.7, Default neutral, Scarce 0.26) and populations are ~15 (was 27). Numbers: README "Selection pressures".
+  Earlier finding (upkeep 0.9): `m` won at every food level because the population grows to each lizard's break-even; do not add mechanics.
+- Hawk default risk is 0.02 (was 0.006: color selection was weak). Color z: Grass +2.3, Sand +4.3, Rock +9.9; one Sand extinction in 10.
 - Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
-- Extinction at the invariant scale: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks on Grass/Sand/Rock at risk 0.006,
-  0.01 and 0.02) and 0 of 5 asexual. The 1-4 of 10 extinctions seen before 2026-10-08 were an artifact of the non-invariant 4x.
+- Extinction at the invariant scale and final values: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks Grass/Rock) except
+  hawks on Sand (1 of 10); 0 of 5 asexual. The 1-4 of 10 extinctions seen before 2026-10-08 were an artifact of the non-invariant 4x.
