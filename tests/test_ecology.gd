@@ -36,6 +36,7 @@ func _run() -> void:
 	_test_lifespan()
 	_test_space_cap()
 	_test_satiety()
+	_test_bugs()
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -48,8 +49,8 @@ func _test_meal_multiplier() -> void:
 	_check(_near(med, 1.0), "medium metabolism gets a normal meal")
 	_check(_near(Ecology.meal_multiplier(_cfg, "low", false), low), "low metabolism multiplier")
 	_check(_near(Ecology.meal_multiplier(_cfg, "high", false), high), "high metabolism multiplier")
-	var eff: float = float(_cfg.cannibal_plant_efficiency)
-	_check(eff < 1.0, "cannibals digest plants worse")
+	var eff: float = float(_cfg.cannibal_insect_efficiency)
+	_check(eff < 1.0, "cannibals get less energy from tiny insects")
 	_check(_near(Ecology.meal_multiplier(_cfg, "medium", true), eff), "cannibal x medium = efficiency")
 	_check(_near(Ecology.meal_multiplier(_cfg, "high", true), high * eff), "cannibal x high stacks")
 	_check(_near(Ecology.meal_multiplier(_cfg, "bogus", false), 1.0), "unknown metabolism falls back to 1")
@@ -113,7 +114,7 @@ func _test_break_even() -> void:
 
 
 func _test_satiety() -> void:
-	# A plant meal that would overflow max_energy is skipped by adults, never by juveniles
+	# An insect meal that would overflow max_energy is skipped by adults, never by juveniles
 	var meal: float = float(_cfg.food_energy_value)
 	var top: float = float(_cfg.max_energy)
 	var was_on: bool = _cfg.satiety_enabled
@@ -126,6 +127,19 @@ func _test_satiety() -> void:
 	_cfg.satiety_enabled = false
 	_check(not Ecology.is_full(_cfg, "adult", top, "medium", false), "satiety off: full adults still eat")
 	_cfg.satiety_enabled = was_on
+
+
+func _test_bugs() -> void:
+	# Bugs are too big for eggs and juveniles; only adults eat them
+	_check(Ecology.can_eat_bug("adult"), "adults can eat bugs")
+	_check(not Ecology.can_eat_bug("juvenile"), "juveniles can't eat bugs")
+	_check(not Ecology.can_eat_bug("egg"), "eggs can't eat bugs")
+	var low: float = Ecology.bug_meal(_cfg, "low")
+	var med: float = Ecology.bug_meal(_cfg, "medium")
+	var high: float = Ecology.bug_meal(_cfg, "high")
+	_check(low < med and med < high, "bug meal ordered low < medium < high")
+	_check(_near(med, float(_cfg.bug_energy_value)), "medium bug meal = bug_energy_value (no cannibal penalty)")
+	_check(float(_cfg.bug_energy_value) > float(_cfg.food_energy_value), "a beetle is worth more than an insect")
 
 
 func _test_lifespan() -> void:

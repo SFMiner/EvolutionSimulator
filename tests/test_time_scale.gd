@@ -39,6 +39,7 @@ func _run() -> void:
 	_config.spawn_founders = false
 	_config.food_initial = 0
 	_config.food_spawn_interval = 100000.0
+	_config.bugs_enabled = false  # a wandering beetle would pull the adult walker off its insect
 	var times: Dictionary = {}  # scale -> Array[float]
 	for scale: float in SCALES:
 		var list: Array[float] = []

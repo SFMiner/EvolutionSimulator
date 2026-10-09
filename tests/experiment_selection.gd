@@ -11,7 +11,9 @@ extends SceneTree
 ##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  (environment controls)
 ##   EXP_CANNIBAL_EFF=<x> EXP_UPKEEP=slow,med,fast EXP_MEALMULT=low,med,high  (trade-off tuning overrides)
 ##   EXP_EGG_COST=<energy> (parent pays it, hatchling starts with it)
-##   EXP_CANNIBALS=0 turns all cannibal predation off (pair with EXP_CANNIBAL_EFF=1 to remove the plant penalty too)
+##   EXP_BUGS=0|1 (bugs_enabled)  EXP_BUG_ENERGY=<energy>  EXP_BUG_RATIO=<x food interval per bug>  EXP_BUG_MAX=<n>
+##   EXP_BUG_SPEED=<px/s>  EXP_BODY_SIZE=<fraction> (draw size of lizards, insects and beetles; ecology unchanged)
+##   EXP_CANNIBALS=0 turns all cannibal predation off (pair with EXP_CANNIBAL_EFF=1 to remove the small-insect penalty too)
 ##   EXP_OUT=<file> also appends every EXP line to a file (Godot prints are very slow when piped
 ##   on Windows; run with stdout to /dev/null and read the file instead).
 ##   EXP_QUIET=1 hides the per-run lines.   EXP_BENCH=50,100,300 runs the frame-time benchmark instead.
@@ -67,6 +69,18 @@ func _run() -> void:
 		_config.food_initial = OS.get_environment("EXP_FOOD_INITIAL").to_int()
 	if OS.get_environment("EXP_FOOD_ENERGY").is_valid_float():
 		_config.food_energy_value = OS.get_environment("EXP_FOOD_ENERGY").to_float()
+	if OS.get_environment("EXP_BUGS") != "":
+		_config.bugs_enabled = OS.get_environment("EXP_BUGS") != "0"
+	if OS.get_environment("EXP_BUG_ENERGY").is_valid_float():
+		_config.bug_energy_value = OS.get_environment("EXP_BUG_ENERGY").to_float()
+	if OS.get_environment("EXP_BUG_RATIO").is_valid_float():
+		_config.bug_spawn_ratio = OS.get_environment("EXP_BUG_RATIO").to_float()
+	if OS.get_environment("EXP_BUG_MAX").is_valid_int():
+		_config.bug_max = OS.get_environment("EXP_BUG_MAX").to_int()
+	if OS.get_environment("EXP_BUG_SPEED").is_valid_float():
+		_config.bug_speed = OS.get_environment("EXP_BUG_SPEED").to_float()
+	if OS.get_environment("EXP_BODY_SIZE").is_valid_float():
+		_config.body_size = OS.get_environment("EXP_BODY_SIZE").to_float()
 	if OS.get_environment("EXP_SATIETY") != "":
 		_config.satiety_enabled = OS.get_environment("EXP_SATIETY") != "0"
 	if OS.get_environment("EXP_EGG_COST").is_valid_float():
@@ -75,7 +89,7 @@ func _run() -> void:
 		_config.hawk_camouflage_factor = OS.get_environment("EXP_HAWK_FACTOR").to_float()
 	# Optional trade-off overrides for tuning: EXP_CANNIBAL_EFF, EXP_UPKEEP="0,0.4,0.9", EXP_MEALMULT="0.7,1,1.4"
 	if OS.get_environment("EXP_CANNIBAL_EFF").is_valid_float():
-		_config.cannibal_plant_efficiency = OS.get_environment("EXP_CANNIBAL_EFF").to_float()
+		_config.cannibal_insect_efficiency = OS.get_environment("EXP_CANNIBAL_EFF").to_float()
 	var upkeep_text: PackedStringArray = OS.get_environment("EXP_UPKEEP").split(",", false)
 	if upkeep_text.size() == 3:
 		_config.speed_upkeep_by_speed = {"slow": upkeep_text[0].to_float(), "medium": upkeep_text[1].to_float(), "fast": upkeep_text[2].to_float()}
@@ -111,7 +125,7 @@ func _run() -> void:
 	_emit("EXP config: founders=%d food_interval=%.3f food_max=%d seconds=%.0f scale=%.1f seeds=%s fps=%d habitat=%d hawks=%s hawk_risk=%.4f cannibal_eff=%.2f upkeep=%s meal_mult=%s space=%d lifespan=%.0f" % [
 			int(_config.founder_count), float(_config.food_spawn_interval), int(_config.food_max),
 			_seconds, _scale, str(seeds), Engine.max_fps, int(_config.habitat), str(_config.hawks_on),
-			float(_config.hawk_risk), float(_config.cannibal_plant_efficiency),
+			float(_config.hawk_risk), float(_config.cannibal_insect_efficiency),
 			str(_config.speed_upkeep_by_speed), str(_config.meal_multiplier_by_metabolism),
 			int(_config.space_cap), float(_config.lifespan_seconds)])
 	for mode_name: String in modes:
@@ -158,14 +172,16 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 	var extinct_at: float = -1.0
 	var max_drift: int = 0
 	var meals_at_half: int = 0
-	_config.diag = {"plant_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
+	var bug_meals_at_half: int = 0
+	_config.diag = {"insect_meals": 0, "bug_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
 	while next_cp < CHECKPOINTS.size():
 		await process_frame
 		var t: float = float(main.simulation_time)
 		while t >= next_second:
 			pops.append(_alive(main))
 			if pops.size() == int(_seconds) / 2:
-				meals_at_half = int(_config.diag["plant_meals"])
+				meals_at_half = int(_config.diag["insect_meals"])
+				bug_meals_at_half = int(_config.diag["bug_meals"])
 			foods.append(main.environment.get_node("FoodContainer").get_child_count())
 			max_drift = maxi(max_drift, absi(int(main.population_count) - pops[pops.size() - 1]))
 			next_second += 1.0
@@ -193,8 +209,10 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 			at_cap += 1
 		min2 = mini(min2, pops[i])
 		max2 = maxi(max2, pops[i])
-	var meals_2: int = int(_config.diag["plant_meals"]) - meals_at_half
+	var meals_2: int = int(_config.diag["insect_meals"]) - meals_at_half
+	var bug_meals_2: int = int(_config.diag["bug_meals"]) - bug_meals_at_half
 	var result: Dictionary = {
+		"bug_meals_per_lizard_s": float(bug_meals_2) / maxf(1.0, sum2) if sum2 > 0.0 else -1.0,
 		"cap_frac": float(at_cap) / maxf(1.0, float(pops.size() - half)),
 		"meals_per_lizard_s": float(meals_2) / maxf(1.0, sum2) if sum2 > 0.0 else -1.0,
 		"kills": (_config.diag as Dictionary).duplicate(),
@@ -308,6 +326,7 @@ func _report(mode_name: String, all_results: Array[Dictionary]) -> void:
 ## Per-capita diagnostics over all runs: meals per lizard-second (2nd half), cannibal kills by prey stage, deaths by cause.
 func _report_diag(results: Array[Dictionary]) -> void:
 	var meals: Array[float] = []
+	var bug_meals: Array[float] = []
 	var causes: Array[String] = ["starved", "eaten", "hawk", "old_age"]
 	var cap_fracs: Array[float] = []
 	var stages: Array[String] = ["kill_egg", "kill_juvenile", "kill_adult"]
@@ -323,6 +342,9 @@ func _report_diag(results: Array[Dictionary]) -> void:
 		var mpl: float = float(r["meals_per_lizard_s"])
 		if mpl >= 0.0:
 			meals.append(mpl)
+		var bmpl: float = float(r["bug_meals_per_lizard_s"])
+		if bmpl >= 0.0:
+			bug_meals.append(bmpl)
 		var deaths: Dictionary = r["deaths"]
 		for key: String in causes:
 			(cause_vals[key] as Array[float]).append(float(deaths.get(key, 0)))
@@ -333,8 +355,10 @@ func _report_diag(results: Array[Dictionary]) -> void:
 			total_kills += float(kills.get(key, 0))
 		if total_kills > 0.0:
 			young_share.append((float(kills.get("kill_egg", 0)) + float(kills.get("kill_juvenile", 0))) / total_kills)
-	_emit("EXP per-capita: plant meals per lizard-second (2nd half) mean=%.4f sd=%.4f (= one meal per %.1f s)" % [
+	_emit("EXP per-capita: insect meals per lizard-second (2nd half) mean=%.4f sd=%.4f (= one meal per %.1f s)" % [
 			_mean(meals), _sd(meals), 1.0 / maxf(_mean(meals), 0.00001)])
+	_emit("EXP per-capita: beetle meals per lizard-second (2nd half) mean=%.4f sd=%.4f (= one beetle per %.1f s)" % [
+			_mean(bug_meals), _sd(bug_meals), 1.0 / maxf(_mean(bug_meals), 0.00001)])
 	_emit("EXP time at the space cap (2nd half, population >= cap; 0 if no cap) mean=%.3f sd=%.3f" % [_mean(cap_fracs), _sd(cap_fracs)])
 	var cause_line: PackedStringArray = PackedStringArray()
 	for key: String in causes:

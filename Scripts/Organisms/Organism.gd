@@ -64,6 +64,11 @@ func _ready():
 		genotype = EvoGenetics.random_founder(rng)
 	genome = EvoGenetics.to_genome(genotype)
 	
+	# Smaller bodies: sprite (and its collision body child) plus label offsets only. Root `scale` is game logic.
+	sprite.scale *= GameConfig.body_size
+	$Label.position *= GameConfig.body_size
+	gene_tags.position *= GameConfig.body_size
+
 	# Set initial scale for egg
 	scale = Vector2(0.2, 0.2)
 	
@@ -388,11 +393,33 @@ func update_sprite():
 			sprite.frame = 1  # Use lizard frame
 			# Don't stop animation here - let movement system handle it
 
-## True if this lizard is too full to eat a plant (Ecology.is_full); full lizards ignore plants.
+## True if this lizard is too full to eat an insect (Ecology.is_full); full lizards ignore insects.
 func is_full() -> bool:
 	return Ecology.is_full(GameConfig, current_state, float(energy), str(genome.metabolism), bool(genome.get("cannibal", false)))
 
 func _on_food_detected(body: Node2D):
+	# Beetles (Bug): energy-rich big prey for adults only; checked before the insect branch (Bug has consume() too)
+	if body is Bug:
+		if not Ecology.can_eat_bug(current_state):
+			return
+		var bug: Bug = body as Bug
+		if bug.is_queued_for_deletion():
+			return
+		if not (ai.is_seeking_food and ai.detected_food == bug):
+			ai.set_food_target(bug)
+		if not _shapes_overlap(self, bug):
+			return
+		bug.consume()
+		energy = min(energy + Ecology.bug_meal(GameConfig, str(genome.metabolism)), max_energy)
+		GameConfig.diag["bug_meals"] = int(GameConfig.diag["bug_meals"]) + 1
+		ai.clear_food_target()
+		var bug_original_color: Color = sprite.modulate
+		sprite.modulate = Color.YELLOW
+		var bug_flash: Tween = create_tween()
+		bug_flash.tween_interval(0.2)
+		bug_flash.tween_callback(func() -> void: sprite.modulate = bug_original_color)
+		return
+
 	if body.has_method("consume") and current_state != "egg" and not is_full():
 		# Calculate true/approx distance (kept for logging/compat)
 		var my_cs = _get_first_collision_shape(self)
@@ -428,10 +455,10 @@ func _on_food_detected(body: Node2D):
 		
 		# Consume
 		body.consume()
-		GameConfig.diag["plant_meals"] = int(GameConfig.diag["plant_meals"]) + 1
+		GameConfig.diag["insect_meals"] = int(GameConfig.diag["insect_meals"]) + 1
 		# Energy/growth handling remains unchanged below
 		
-		# Metabolism and cannibalism change how much a plant meal is worth (Ecology rules)
+		# Metabolism and cannibalism change how much an insect meal is worth (Ecology rules)
 		var meal_mult: float = Ecology.meal_multiplier(GameConfig, str(genome.metabolism), bool(genome.get("cannibal", false)))
 
 		# Handle energy and growth based on state

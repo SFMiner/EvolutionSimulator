@@ -25,8 +25,11 @@ func _physics_process(delta):
 	# Validate current target
 	if is_seeking_food and (detected_food == null or !is_instance_valid(detected_food)):
 		clear_food_target()
-	# A full lizard drops a plant target (prey targets are kept)
-	if is_seeking_food and !(detected_food is Organism) and organism.is_full():
+	# A juvenile can't eat bugs: drop a bug target
+	if is_seeking_food and detected_food is Bug and !Ecology.can_eat_bug(organism.current_state):
+		clear_food_target()
+	# A full lizard drops an insect target (prey and beetle targets are kept)
+	if is_seeking_food and !(detected_food is Organism) and !(detected_food is Bug) and organism.is_full():
 		clear_food_target()
 	
 	# Move towards target or in current direction
@@ -84,12 +87,22 @@ func _physics_process(delta):
 						if d < best_d:
 							best_d = d
 							chosen = prey
-		# If no prey selected, look for food areas
+		# Adults prefer the nearest bug (bugs are Areas, like food); juveniles skip bugs entirely
+		if chosen == null and Ecology.can_eat_bug(organism.current_state):
+			var best_bug_d: float = INF
+			for a in organism.detection_area.get_overlapping_areas():
+				var bug_candidate: Bug = a.get_parent() as Bug
+				if bug_candidate != null and !bug_candidate.is_queued_for_deletion():
+					var bd: float = organism.position.distance_to(bug_candidate.position)
+					if bd < best_bug_d:
+						best_bug_d = bd
+						chosen = bug_candidate
+		# If no prey or bug selected, look for food areas
 		if chosen == null and !organism.is_full():
 			var areas = organism.detection_area.get_overlapping_areas()
 			for a in areas:
 				var candidate = a.get_parent()
-				if candidate != null and candidate != organism and candidate.has_method("consume"):
+				if candidate != null and candidate != organism and !(candidate is Bug) and candidate.has_method("consume"):
 					chosen = candidate
 					break
 		if chosen != null:

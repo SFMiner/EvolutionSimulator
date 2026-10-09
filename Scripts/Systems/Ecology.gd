@@ -31,7 +31,7 @@ const DEATH_HAWK: String = "hawk"
 const DEATH_OLD_AGE: String = "old_age"
 
 
-## Plant meals per second a lizard of this metabolism needs to just break even at full size
+## Insect meals per second a lizard of this metabolism needs to just break even at full size
 ## (drain / (meal multiplier x meal energy)). Must be ordered low < medium < high.
 static func break_even_intake(cfg: Node, metabolism: String) -> float:
 	var rates: Dictionary = cfg.energy_depletion_rates
@@ -40,7 +40,7 @@ static func break_even_intake(cfg: Node, metabolism: String) -> float:
 	return drain / maxf(meal, 0.0001)
 
 
-## True if an adult is too full for a plant meal: it is ready to breed and the meal would overflow
+## True if an adult is too full for an insect meal: it is ready to breed and the meal would overflow
 ## max_energy (satiety on). Below reproduction_energy it always eats, so a lizard waiting for a mate
 ## does not drop out of breeding readiness. Juveniles always eat, because their meals also pay for growth.
 static func is_full(cfg: Node, stage: String, energy: float, metabolism: String, cannibal: bool) -> bool:
@@ -62,13 +62,25 @@ static func can_lay(cfg: Node, live_count: int) -> bool:
 	return cap <= 0 or live_count < cap
 
 
-## Multiplier on the energy of a plant meal: metabolism pays off, cannibals digest plants poorly.
+## Multiplier on the energy of an insect meal: metabolism pays off, cannibals are built for big prey so tiny insects
+## give them less.
 static func meal_multiplier(cfg: Node, metabolism: String, cannibal: bool) -> float:
 	var table: Dictionary = cfg.meal_multiplier_by_metabolism
 	var mult: float = float(table.get(metabolism, 1.0))
 	if cannibal:
-		mult *= float(cfg.cannibal_plant_efficiency)
+		mult *= float(cfg.cannibal_insect_efficiency)
 	return mult
+
+
+## Beetles (Bug) are too big for eggs and juveniles: only adults can eat them.
+static func can_eat_bug(stage: String) -> bool:
+	return stage == "adult"
+
+
+## Energy of one beetle meal: metabolism pays, but the cannibal small-insect penalty does not apply (beetles are big prey).
+static func bug_meal(cfg: Node, metabolism: String) -> float:
+	var table: Dictionary = cfg.meal_multiplier_by_metabolism
+	return float(cfg.bug_energy_value) * float(table.get(metabolism, 1.0))
 
 
 ## Extra energy per second for being fast, scaled by body size like the metabolism drain.

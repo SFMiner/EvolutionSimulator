@@ -22,7 +22,7 @@ This simulator creates a sandbox environment where organisms (lizards) hatch, gr
 - **Speed**: Affects movement speed (slow/medium/fast)
 - **Growth Rate**: Affects time to reach adulthood (slow/normal/fast)
 - **Color**: Camouflage (green/brown/gray): a lizard whose color matches the ground is caught far less often by hawks
-- **Cannibal**: Eats lizards at most half its size, but gets less energy from plants
+- **Cannibal**: Eats lizards at most half its size, but gets less energy from tiny insects (it is built for big prey; beetles still give it the full meal)
 
 ### User Interface
 - **Environment controls** (right panel): Food slider (Scarce to Plenty), Ground (Grass / Sand / Rock), Hawks (off / on), Show labels
@@ -53,7 +53,8 @@ If the autoload doesn't work automatically:
 - **Small white eggs**: Eggs (stationary, 20% scale)
 - **Growing yellow lizards**: Juveniles (moving, gradually scaling from 20% to 100%)
 - **Full-sized colored lizards**: Adults (green/brown/gray based on genetics, 100% scale)
-- **Red berries with a leaf**: Food items (drawn in code)
+- **Tiny red-orange insects (ants)**: Food items, each facing a random direction (drawn in code)
+- **Brown beetles**: Large prey about hatchling size, worth 60 energy (an insect is 30). Only adults can eat them. They crawl at 10 px/s (`GameConfig.bug_speed`). Everything is drawn at half size (`GameConfig.body_size`, 0.5); ecology numbers are unchanged
 - **Animated movement**: Lizards walk with directional animations
 - **Right panel**: Population and generation counters
 
@@ -116,7 +117,7 @@ evolution-simulator/
 - Mutation: 5% per allele per gamete (or per clone copy), adjustable 0-20% in the UI
 
 ### Food System
-- Food (red berries) spawns every 0.35 seconds by default (`GameConfig.food_spawn_interval`, the Food slider changes it from 1.0 s to 0.25 s), capped at 150 alive (`food_max`); 30 items are placed at the start (`food_initial`)
+- Food (tiny insects) spawns every 0.35 seconds by default (`GameConfig.food_spawn_interval`, the Food slider changes it from 1.0 s to 0.25 s), capped at 150 alive (`food_max`); 30 items are placed at the start (`food_initial`)
 - Random positions within the environment
 - Organisms detect food within a 200-pixel radius (scaled by their size)
 - Organisms move toward detected food
@@ -160,7 +161,7 @@ evolution-simulator/
 - [x] Ecology tuned for selection: 24 founders, food 0.35 s / cap 150, ecology numbers centralized in `GameConfig`; before the trade-offs population settled ~70-80; with them it settles ~30 at the default food (no space limit: Plenty ~40, Scarce ~22)
 - [x] `tests/experiment_selection.gd`: seeded multi-run allele-frequency experiment + frame-time benchmark (see CLAUDE.md)
 - [x] `Organism.die()` guard against double death (population counter was undercounting)
-- [x] Trade-offs and environment (spec: `Docs/Trade-offs and Environment.md`): metabolism pays more per meal, speed has an upkeep, cannibals digest plants badly, color is camouflage against hawks
+- [x] Trade-offs and environment (spec: `Docs/Trade-offs and Environment.md`): metabolism pays more per meal, speed has an upkeep, cannibals get less energy from tiny insects, color is camouflage against hawks
 - [x] Environment controls: Food slider, Ground (Grass / Sand / Rock), Hawks on/off; deaths counted by cause (starved / eaten / hawks)
 - [x] `Ecology.gd` holds the pure rules; `tests/test_ecology.gd` tests them
 - [x] Display fixes: labels hidden by default ("Show labels" checkbox), whole-number energy, metabolism tag fixed, click-to-inspect box, one population number, food drawn in code, arena and panels no longer overlap (window 1200x648), debug prints gated by `DEBUG`
@@ -179,9 +180,9 @@ evolution-simulator/
 | Speed | fast 60 px/s vs slow 20; upkeep 0 / 3.5 / 7.5 energy per second (times body size) | A real trade-off that depends on food: sexual `S` Plenty 0.51 to 0.75 (z +2.0), Default 0.48 (z -0.1, polymorphic; 0.55 at 300 s), Scarce 0.5 s 0.16 (z -2.6, slow `s` rises). With hawks on, speed is neutral (0.40-0.51). Asexual (5 seeds): 0.75 Plenty, 0.63 Default, 0.46 Scarce. Why: fast lizards win races for food, but pay upkeep every second whether or not they eat; the race is worth it only when food is plentiful. Tuning history: upkeep 0.9 to 3 left fast on top everywhere (0.90-0.96); the flip needs a fast upkeep near 7 (6 gave fast at Plenty and about neutral at Scarce, 8 gave slow at Default and Scarce) |
 | Growth rate | fast hatches in 4 s and needs 3 meals; slow gets 2x juvenile energy per meal but needs 8 | Slow-growing `g` leans ahead with no space limit: `G` 0.20 at Plenty (z -2.1), 0.18 Default (z -1.7), 0.33 Scarce 0.5 s (z -0.7). Asexual `G` 0.08 Plenty (z -18), 0.06 Default (z -7.2), 0.25 Scarce (z -2.1). Treat it as a lean, not a flip |
 | Color | camouflage against hawks: risk 2%/s (default), x0.05 when the color matches the ground | The color matching the ground rises, and the effect grows with the hawk risk. At the default 0.02 (10 seeds): Grass `Cg` 0.24 to 0.73 (z +2.3), Sand `Cb` 0.19 to 0.77 (z +4.3), Rock `Cy` 0.59 to 0.97 (z +9.9). Earlier at risk 0.006 / 0.01 (before the speed retune): Grass +1.8 / +1.9, Sand +1.3 / +3.3, Rock +0.4 / +1.2, so a weaker hawk is hard to see through drift. Hawks off (Default): drift (`Cb` +0.3, `Cg` +0.4, `Cy` -0.7 z) |
-| Cannibal | eats organisms <= half its size for their energy; x0.6 energy from plants | `K` (non-cannibal) rises everywhere: Plenty 0.76 (z +2.4), Default 0.84 (z +3.0), Scarce 0.5 s 0.85 (z +3.6); hawks runs z +1.7 to +2.8. Cannibals are never favored |
+| Cannibal | eats organisms <= half its size for their energy; x0.6 energy from tiny insects (not from beetles) | `K` (non-cannibal) rises everywhere: Plenty 0.76 (z +2.4), Default 0.84 (z +3.0), Scarce 0.5 s 0.85 (z +3.6); hawks runs z +1.7 to +2.8. Cannibals are never favored |
 
-Populations (2nd-half mean, no space limit): Plenty 17, Default 15, Scarce 0.5 s 16, hawks rows 15-16 (the 3.5 / 7.5 speed upkeep costs a lot of energy, so populations are about half of the old 27 at Default; the number barely depends on food now, but plant meals per lizard-second do: 0.25 at Plenty, 0.21 Default, 0.13 Scarce). Asexual (5 seeds): Plenty 29, Default 25, Scarce 21. Extinctions: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks on Grass / Rock at risk 0.02) except Sand with hawks (1 of 10), and 0 of 5 asexual. The sd and z are across seeds, so z moves between repeats. Numbers from before 2026-10-08 were measured at a non-invariant 4x time scale and no longer apply.
+Populations (2nd-half mean, no space limit): Plenty 17, Default 15, Scarce 0.5 s 16, hawks rows 15-16 (the 3.5 / 7.5 speed upkeep costs a lot of energy, so populations are about half of the old 27 at Default; the number barely depends on food now, but insect meals per lizard-second do: 0.25 at Plenty, 0.21 Default, 0.13 Scarce). Asexual (5 seeds): Plenty 29, Default 25, Scarce 21. Extinctions: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks on Grass / Rock at risk 0.02) except Sand with hawks (1 of 10), and 0 of 5 asexual. The sd and z are across seeds, so z moves between repeats. Numbers from before 2026-10-08 were measured at a non-invariant 4x time scale and no longer apply.
 
 What to teach with it:
 1. Speed is a trade-off that depends on food: fast `S` rises at Plenty, slow `s` rises at Scarce, and the Default food keeps both (polymorphic). Fast lizards win the race for food but pay upkeep every second.
@@ -230,7 +231,7 @@ var meal_multiplier_by_metabolism = {"low": 0.7, "medium": 1.0, "high": 1.4}
 var space_cap = 0                   # 0 = no cap (default)
 var lifespan_seconds = 150.0        # times a random 0.8-1.2 per lizard
 var speed_upkeep_by_speed = {"slow": 0.0, "medium": 3.5, "fast": 7.5}
-var cannibal_plant_efficiency = 0.6
+var cannibal_insect_efficiency = 0.6
 var hawk_risk = 0.02                # per second, when hawks are on
 var hawk_camouflage_factor = 0.05   # risk multiplier when the color matches the ground
 var food_interval_scarce = 1.0

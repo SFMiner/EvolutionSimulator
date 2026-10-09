@@ -65,7 +65,7 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
 - Window is 1200x648 (project.godot display + canvas_items stretch): arena 800 px wide plus two 200 px panels, no overlap.
 - Debug `print`s are gated by `Organism.DEBUG` / `Food.DEBUG` (false). They cost ~6x on the experiment; do not re-enable in loops.
 - `GameConfig.cannibalism_enabled` (default true; `EXP_CANNIBALS=0` in the experiment) stops all cannibal predation. The
-  experiment report now prints plant meals per lizard-second (2nd half), cannibal kills by prey stage and deaths by cause.
+  experiment report now prints insect meals per lizard-second (2nd half), cannibal kills by prey stage and deaths by cause.
   Finding (2026-10-07, 10 seeds, sexual): cannibals do NOT regulate the population; see the report for numbers.
 - Experiment extras: `EXP_HABITAT=grass|sand|rock`, `EXP_HAWKS=1`, `EXP_HAWK_RISK`, `EXP_HAWK_FACTOR`, `EXP_CANNIBAL_EFF`,
   `EXP_UPKEEP=slow,med,fast`, `EXP_MEALMULT=low,med,high`, `EXP_FOOD_ENERGY`, `EXP_FOOD_INITIAL`, `EXP_TRACE=1` (population
@@ -84,8 +84,16 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   Earlier finding (upkeep 0.9): `m` won at every food level because the population grows to each lizard's break-even; do not add mechanics.
 - Population (~15) is NOT raised by bigger meals (food energy 40) or costlier eggs (`egg_cost` 30-50, hatchlings now start with
   it): both tried 2026-10-09, flat or lower population, more extinctions. Satiety (`satiety_enabled`, full ready adults skip
-  plants) is OFF: it grew Plenty/asexual populations to ~24 but sexual extinctions went 1 -> 17 of 60 and the speed flip vanished.
+  insects) is OFF: it grew Plenty/asexual populations to ~24 but sexual extinctions went 1 -> 17 of 60 and the speed flip vanished.
   Without the "always eat below reproduction_energy" guard it was worse (waiting lizards fell out of mating readiness).
+- Food naming: the small food (`Food.gd`) is drawn as tiny insects (was berries; the old "plant" wording is gone from code).
+  Beetles (`Bug.gd`, not a .tscn) are large prey only adults eat (`Ecology.can_eat_bug`), 60 energy, no cannibal penalty
+  (cannibals get `cannibal_insect_efficiency` 0.6 only from small insects). `GameConfig.body_size` 0.5 shrinks ONLY the
+  sprite + collision (root `scale` is game logic: drain, sensing, cannibal size rule). Measured 2026-10-09 (10 seeds x 600 s):
+  beetle speed 15 erased the Scarce speed trend (fast lizards catch beetles); 10 keeps speed and metabolism flips, populations
+  Default 17 / Plenty 22 / hawks 14-18. 30-seed recheck (seeds 11-40, 10 px/s): food rows 0 of 90 extinct, but HAWK rows 9 of 90
+  (Grass 5, Sand 1, Rock 3; baseline before beetles + shrink was 1 of 30, shrink-only 4 of 30). Speed z per 15 seeds: Scarce
+  -1.5/-1.4, Plenty +0.7/+1.6. Open issue: hawk-row extinctions.
 - Hawk default risk is 0.02 (was 0.006: color selection was weak). Color z: Grass +2.3, Sand +4.3, Rock +9.9; one Sand extinction in 10.
 - Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
 - Extinction at the invariant scale and final values: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks Grass/Rock) except

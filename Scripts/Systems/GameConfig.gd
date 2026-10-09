@@ -42,21 +42,41 @@ var hawks_on: bool = false
 ## Chance per second that a hawk catches a lizard; multiplied by the factor when camouflaged.
 var hawk_risk: float = 0.02
 var hawk_camouflage_factor: float = 0.05
-## Metabolism pays: plant meal energy is multiplied by this (applies to adult and juvenile meals).
+## Metabolism pays: insect meal energy is multiplied by this (applies to adult and juvenile meals).
 ## Invariant (tested): break-even intake drain / (multiplier x meal) is ordered low < medium < high.
 var meal_multiplier_by_metabolism: Dictionary = {"low": 0.7, "medium": 1.0, "high": 1.4}
 ## Speed costs: extra energy per second (times body scale).
 var speed_upkeep_by_speed: Dictionary = {"slow": 0.0, "medium": 3.5, "fast": 7.5}
-## Cannibals digest plants badly: multiplier on plant meal energy (prey energy is unchanged).
-var cannibal_plant_efficiency: float = 0.6
-## Diagnostic switch: false stops all cannibal predation (kk lizards just eat plants).
+## Cannibals are built for big prey, so they get less energy from tiny insects: multiplier on insect meal energy
+## (lizard prey and beetle energy are unchanged).
+var cannibal_insect_efficiency: float = 0.6
+## Diagnostic switch: false stops all cannibal predation (kk lizards just eat insects).
 var cannibalism_enabled: bool = true
-## Full adults (ready to breed and a plant meal would overflow max_energy) ignore plants. OFF by default:
+## Full adults (ready to breed and an insect meal would overflow max_energy) ignore insects. OFF by default:
 ## measured 2026-10-09 (10 seeds x 600 s) it raised extinctions from 1 to 17 of 60 sexual runs and erased the
 ## speed flip; only Plenty and asexual populations grew. Experiment knob: EXP_SATIETY=1.
 var satiety_enabled: bool = false
-## Running counters for the selection experiment (plant meals, cannibal kills by prey stage).
-var diag: Dictionary = {"plant_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
+## Running counters for the selection experiment (insect meals, cannibal kills by prey stage).
+var diag: Dictionary = {"insect_meals": 0, "bug_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
+## Draws lizards, insects and beetles at this fraction of the original size (sprites and collision shapes only).
+## Root `scale`, speeds and sensing distances are unchanged.
+var body_size: float = 0.5
+# === BUGS (energy-rich prey that only adults can eat; rules in Ecology.can_eat_bug / bug_meal) ===
+## Switch for the whole bug mechanic.
+var bugs_enabled: bool = true
+## Energy of one bug before the metabolism multiplier (an insect is 30).
+var bug_energy_value: float = 60.0
+## One bug spawns every food_spawn_interval * bug_spawn_ratio seconds, so the Food slider scales bugs too.
+var bug_spawn_ratio: float = 8.0
+## Most bugs alive at once.
+var bug_max: int = 12
+## Bug walking speed in px/s (slow lizards move 20). Measured 2026-10-09 (10 seeds x 600 s): 15 erased the Scarce speed
+## trend (fast lizards catch more bugs); 5 and 10 kept it; 10 also kept the metabolism flip.
+var bug_speed: float = 10.0
+## Bug collision radius in px before body_size is applied.
+var bug_radius: float = 14.0
+## Bugs placed at the start.
+var bug_initial: int = 3
 # === SPACE AND LIFE HISTORY (see Docs/Space and Life History.md) ===
 ## No new eggs while eggs + juveniles + adults >= space_cap ("no room for new nests"). 0 = no cap.
 var space_cap: int = 0

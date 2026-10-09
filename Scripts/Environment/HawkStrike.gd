@@ -14,6 +14,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(GameConfig.body_size, GameConfig.body_size))
 	var shadow: PackedVector2Array = PackedVector2Array()
 	for i: int in range(24):
 		var angle: float = TAU * float(i) / 24.0
