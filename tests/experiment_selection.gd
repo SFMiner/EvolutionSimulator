@@ -10,6 +10,7 @@ extends SceneTree
 ##   EXP_FOOD_INTERVAL=<s> EXP_FOOD_MAX=<n>  EXP_FOUNDERS=<n>   (override GameConfig for a variant)
 ##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  (environment controls)
 ##   EXP_CANNIBAL_EFF=<x> EXP_UPKEEP=slow,med,fast EXP_MEALMULT=low,med,high  (trade-off tuning overrides)
+##   EXP_EGG_COST=<energy> (parent pays it, hatchling starts with it)
 ##   EXP_CANNIBALS=0 turns all cannibal predation off (pair with EXP_CANNIBAL_EFF=1 to remove the plant penalty too)
 ##   EXP_OUT=<file> also appends every EXP line to a file (Godot prints are very slow when piped
 ##   on Windows; run with stdout to /dev/null and read the file instead).
@@ -66,6 +67,8 @@ func _run() -> void:
 		_config.food_initial = OS.get_environment("EXP_FOOD_INITIAL").to_int()
 	if OS.get_environment("EXP_FOOD_ENERGY").is_valid_float():
 		_config.food_energy_value = OS.get_environment("EXP_FOOD_ENERGY").to_float()
+	if OS.get_environment("EXP_EGG_COST").is_valid_float():
+		_config.egg_cost = OS.get_environment("EXP_EGG_COST").to_float()
 	if OS.get_environment("EXP_HAWK_FACTOR").is_valid_float():
 		_config.hawk_camouflage_factor = OS.get_environment("EXP_HAWK_FACTOR").to_float()
 	# Optional trade-off overrides for tuning: EXP_CANNIBAL_EFF, EXP_UPKEEP="0,0.4,0.9", EXP_MEALMULT="0.7,1,1.4"

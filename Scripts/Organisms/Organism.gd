@@ -76,9 +76,9 @@ func _ready():
 	add_child(_prey_seek_timer)
 	_prey_seek_timer.timeout.connect(_on_prey_seek_cooldown_timeout)
 	
-	# Initialize energy - eggs start with exactly the reproduction cost (20 energy)
+	# Initialize energy - eggs start with exactly the energy their parent paid (GameConfig.egg_cost)
 	if current_state == "egg":
-		energy = 20  # Eggs start with the energy their parent paid
+		energy = GameConfig.egg_cost
 	
 	# Set up timers
 	energy_timer.wait_time = 1.0
