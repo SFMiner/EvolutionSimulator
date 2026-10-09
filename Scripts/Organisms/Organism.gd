@@ -388,8 +388,12 @@ func update_sprite():
 			sprite.frame = 1  # Use lizard frame
 			# Don't stop animation here - let movement system handle it
 
+## True if this lizard is too full to eat a plant (Ecology.is_full); full lizards ignore plants.
+func is_full() -> bool:
+	return Ecology.is_full(GameConfig, current_state, float(energy), str(genome.metabolism), bool(genome.get("cannibal", false)))
+
 func _on_food_detected(body: Node2D):
-	if body.has_method("consume") and current_state != "egg":
+	if body.has_method("consume") and current_state != "egg" and not is_full():
 		# Calculate true/approx distance (kept for logging/compat)
 		var my_cs = _get_first_collision_shape(self)
 		var food_cs = _get_first_collision_shape(body)

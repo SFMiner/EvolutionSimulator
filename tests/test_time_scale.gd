@@ -81,7 +81,7 @@ func _walk(i: int, scale: float) -> float:
 	(org.get("animation_player") as AnimationPlayer).stop()
 	org.set("age", 0.0)
 	org.set("lifespan", 0.0)
-	org.set("energy", 80.0)
+	org.set("energy", 50.0)  # hungry enough to want a meal (satiety), well above starving
 	var food: Node2D = (load("res://Scenes/Food.tscn") as PackedScene).instantiate() as Node2D
 	main.environment.get_node("FoodContainer").add_child(food)
 	food.position = WALK_TO[i]

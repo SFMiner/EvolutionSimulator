@@ -25,6 +25,9 @@ func _physics_process(delta):
 	# Validate current target
 	if is_seeking_food and (detected_food == null or !is_instance_valid(detected_food)):
 		clear_food_target()
+	# A full lizard drops a plant target (prey targets are kept)
+	if is_seeking_food and !(detected_food is Organism) and organism.is_full():
+		clear_food_target()
 	
 	# Move towards target or in current direction
 	var direction: Vector2
@@ -82,7 +85,7 @@ func _physics_process(delta):
 							best_d = d
 							chosen = prey
 		# If no prey selected, look for food areas
-		if chosen == null:
+		if chosen == null and !organism.is_full():
 			var areas = organism.detection_area.get_overlapping_areas()
 			for a in areas:
 				var candidate = a.get_parent()

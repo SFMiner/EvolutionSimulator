@@ -51,6 +51,10 @@ var speed_upkeep_by_speed: Dictionary = {"slow": 0.0, "medium": 3.5, "fast": 7.5
 var cannibal_plant_efficiency: float = 0.6
 ## Diagnostic switch: false stops all cannibal predation (kk lizards just eat plants).
 var cannibalism_enabled: bool = true
+## Full adults (ready to breed and a plant meal would overflow max_energy) ignore plants. OFF by default:
+## measured 2026-10-09 (10 seeds x 600 s) it raised extinctions from 1 to 17 of 60 sexual runs and erased the
+## speed flip; only Plenty and asexual populations grew. Experiment knob: EXP_SATIETY=1.
+var satiety_enabled: bool = false
 ## Running counters for the selection experiment (plant meals, cannibal kills by prey stage).
 var diag: Dictionary = {"plant_meals": 0, "kill_egg": 0, "kill_juvenile": 0, "kill_adult": 0}
 # === SPACE AND LIFE HISTORY (see Docs/Space and Life History.md) ===

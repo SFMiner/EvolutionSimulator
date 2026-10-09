@@ -67,6 +67,8 @@ func _run() -> void:
 		_config.food_initial = OS.get_environment("EXP_FOOD_INITIAL").to_int()
 	if OS.get_environment("EXP_FOOD_ENERGY").is_valid_float():
 		_config.food_energy_value = OS.get_environment("EXP_FOOD_ENERGY").to_float()
+	if OS.get_environment("EXP_SATIETY") != "":
+		_config.satiety_enabled = OS.get_environment("EXP_SATIETY") != "0"
 	if OS.get_environment("EXP_EGG_COST").is_valid_float():
 		_config.egg_cost = OS.get_environment("EXP_EGG_COST").to_float()
 	if OS.get_environment("EXP_HAWK_FACTOR").is_valid_float():

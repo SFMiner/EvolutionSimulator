@@ -40,6 +40,16 @@ static func break_even_intake(cfg: Node, metabolism: String) -> float:
 	return drain / maxf(meal, 0.0001)
 
 
+## True if an adult is too full for a plant meal: it is ready to breed and the meal would overflow
+## max_energy (satiety on). Below reproduction_energy it always eats, so a lizard waiting for a mate
+## does not drop out of breeding readiness. Juveniles always eat, because their meals also pay for growth.
+static func is_full(cfg: Node, stage: String, energy: float, metabolism: String, cannibal: bool) -> bool:
+	if not bool(cfg.satiety_enabled) or stage != "adult" or energy < float(cfg.reproduction_energy):
+		return false
+	var meal: float = float(cfg.food_energy_value) * meal_multiplier(cfg, metabolism, cannibal)
+	return energy + meal > float(cfg.max_energy)
+
+
 ## Seconds of life after hatching: lifespan_seconds times a random factor from the lizard's rng.
 static func roll_lifespan(cfg: Node, rng: RandomNumberGenerator) -> float:
 	var spread: float = float(cfg.lifespan_spread)

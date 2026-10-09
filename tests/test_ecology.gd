@@ -35,6 +35,7 @@ func _run() -> void:
 	_test_break_even()
 	_test_lifespan()
 	_test_space_cap()
+	_test_satiety()
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -109,6 +110,22 @@ func _test_break_even() -> void:
 	_check(low > 0.0, "break-even intake is positive")
 	_check(low < med and med < high, "break-even intake ordered low < medium < high (%.4f %.4f %.4f)" % [low, med, high])
 	_check(_near(med, float(_cfg.energy_depletion_rates["medium"]) / float(_cfg.food_energy_value)), "medium break-even = drain / meal")
+
+
+func _test_satiety() -> void:
+	# A plant meal that would overflow max_energy is skipped by adults, never by juveniles
+	var meal: float = float(_cfg.food_energy_value)
+	var top: float = float(_cfg.max_energy)
+	var was_on: bool = _cfg.satiety_enabled
+	_cfg.satiety_enabled = true
+	var ready: float = float(_cfg.reproduction_energy)
+	_check(not Ecology.is_full(_cfg, "adult", top - meal, "medium", false), "adult with room for a whole meal eats")
+	_check(not Ecology.is_full(_cfg, "adult", ready - 1.0, "medium", false), "adult below breeding readiness always eats")
+	_check(Ecology.is_full(_cfg, "adult", maxf(ready, top - meal + 1.0), "medium", false), "ready adult that would overflow is full")
+	_check(not Ecology.is_full(_cfg, "juvenile", top, "medium", false), "juveniles always eat")
+	_cfg.satiety_enabled = false
+	_check(not Ecology.is_full(_cfg, "adult", top, "medium", false), "satiety off: full adults still eat")
+	_cfg.satiety_enabled = was_on
 
 
 func _test_lifespan() -> void:

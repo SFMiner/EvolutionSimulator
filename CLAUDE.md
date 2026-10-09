@@ -82,6 +82,10 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   changed little. The flip needs fast ~7 (6: fast at Plenty, ~neutral Scarce; 8: slow at Default and Scarce). Side effect: `M` now follows
   food too (Plenty 0.78 z +2.7, Default neutral, Scarce 0.26) and populations are ~15 (was 27). Numbers: README "Selection pressures".
   Earlier finding (upkeep 0.9): `m` won at every food level because the population grows to each lizard's break-even; do not add mechanics.
+- Population (~15) is NOT raised by bigger meals (food energy 40) or costlier eggs (`egg_cost` 30-50, hatchlings now start with
+  it): both tried 2026-10-09, flat or lower population, more extinctions. Satiety (`satiety_enabled`, full ready adults skip
+  plants) is OFF: it grew Plenty/asexual populations to ~24 but sexual extinctions went 1 -> 17 of 60 and the speed flip vanished.
+  Without the "always eat below reproduction_energy" guard it was worse (waiting lizards fell out of mating readiness).
 - Hawk default risk is 0.02 (was 0.006: color selection was weak). Color z: Grass +2.3, Sand +4.3, Rock +9.9; one Sand extinction in 10.
 - Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
 - Extinction at the invariant scale and final values: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks Grass/Rock) except
