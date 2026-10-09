@@ -44,7 +44,7 @@ func _run() -> void:
 	_config.founder_count = saved_founders
 	_config.space_cap = saved_cap
 	_config.lifespan_seconds = saved_life
-	Engine.time_scale = 1.0
+	_config.set_sim_speed(1.0)
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -56,7 +56,7 @@ func _run_mode(mode_name_in: String, mode: int, seed_value: int, hawks: bool = f
 	_config.reproduction_mode = mode
 	var main: Node = (load("res://Scenes/Main.tscn") as PackedScene).instantiate()
 	get_root().add_child(main)
-	Engine.time_scale = TIME_SCALE
+	_config.set_sim_speed(TIME_SCALE)
 	var started_ms: int = Time.get_ticks_msec()
 	var max_live: int = 0
 	var prev_live: int = 0
@@ -73,7 +73,7 @@ func _run_mode(mode_name_in: String, mode: int, seed_value: int, hawks: bool = f
 			break
 		if int(main.population_count) <= 0:
 			break
-	Engine.time_scale = 1.0
+	_config.set_sim_speed(1.0)
 	var pop: int = int(main.population_count)
 	var births: Dictionary = main.births
 	var live: Array[Dictionary] = main.get_live_genotypes()

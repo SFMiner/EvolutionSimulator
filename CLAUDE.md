@@ -13,12 +13,18 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
 - One RNG: `SimulationManager.rng` (seed with env `EVO_SEED`). Pass it to every Genome call.
 - Pause is `get_tree().paused`; the UI CanvasLayer is `process_mode = ALWAYS` so its controls work paused.
   New timed logic must use Timers or `_process` delta so pause and `Engine.time_scale` apply.
+- **Fast-forward ONLY via `GameConfig.set_sim_speed(scale)`**, never `Engine.time_scale` alone. Time scale alone makes each 1/60 s physics
+  step cover `scale` times more time, so lizards overshoot food (they orbit it forever at 4x-8x) and Area2D overlaps are sampled too rarely.
+  The helper also sets `physics_ticks_per_second = 60 x scale` (60 steps per simulated second, verified headless with `--fixed-fps 60`).
+  Measured 1x = 4x = 8x within noise, so **8x is the max safe scale tested** (the experiment default; higher is untested). All earlier tuned
+  numbers (before 2026-10-08) came from a non-invariant 4x and are void. `tests/test_time_scale.gd` guards this. Headless wall time is
+  physics-bound, so a higher scale saves little.
 - **Tests:** `GODOT=../Godot_v4.5-stable_win64.exe bash tests/run_all_tests.sh` (each suite is
   `../Godot_v4.5-stable_win64.exe --headless --path . --script tests/test_x.gd`). Test scripts must not
   name `Organism`/`SimulationManager` as types (autoloads are not identifiers when they compile); use
   `root.get_node("/root/GameConfig")` after `await get_root().ready`.
 - **Screenshot gate (not headless):** `EVO_SHOT=<png> EVO_MODE=sexual|asexual EVO_SECONDS=90 EVO_SEED=n
-  ../Godot_v4.5-stable_win64.exe --path .` runs at 4x time scale, saves the viewport, quits.
+  ../Godot_v4.5-stable_win64.exe --path .` runs at 4x (via `set_sim_speed`), saves the viewport, quits.
 - Checks: `--headless --path . --editor --quit-after 250` and `--headless --path . --quit-after 600`
   must print no errors/warnings (baseline was clean).
 - Conventions: tabs; full type hints in new code (legacy files are untyped, leave them); no `:=` on untyped
@@ -32,11 +38,11 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   batch in ~1 of 10 runs once meals were worth less).
 - **Selection experiment (slow, not in run_all_tests):**
   `EXP_OUT=out.txt ../Godot_v4.5-stable_win64.exe --headless --fixed-fps 60 --path . --script tests/experiment_selection.gd >/dev/null`
-  Env: `EXP_SEEDS=1,2,3,4,5` `EXP_SECONDS=600` `EXP_MODES=sexual,asexual` `EXP_SCALE=4` and `EXP_FOOD_INTERVAL` /
+  Env: `EXP_SEEDS=1,2,3,4,5` `EXP_SECONDS=600` `EXP_MODES=sexual,asexual` `EXP_SCALE=8` and `EXP_FOOD_INTERVAL` /
   `EXP_FOOD_MAX` / `EXP_FOUNDERS` for variants (scarce food: `EXP_FOOD_INTERVAL=0.7`). `EXP_BENCH=50,100,300` runs the
   frame-time benchmark instead. Prints per-allele frequency (start, 25/50/75/100%, mean over seeds, sd, per-seed end).
   Read `EXP_OUT`, not stdout: the project's debug `print`s make piped/file output ~6x slower on Windows.
-  Run several processes in parallel (one per mode/variant); 10 seeds x 600 s takes ~8 min per process.
+  Run several processes in parallel (one per mode/variant); 10 seeds x 600 s takes ~10 min per process with 15 in parallel.
 - **Seeded runs are NOT bit-exact** even with `--fixed-fps 60` + `EVO_SEED`: the state first diverges at the first egg
   hatch (~4 s) because Area2D overlap/signal order picks a different food among several in range. Compare runs
   statistically (many seeds), not by digest.
@@ -71,13 +77,11 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   "No limit" notch at 65 (`space_slider_no_limit`). `lifespan_seconds` 150 x 0.8-1.2 is rolled at hatch (`Ecology.DEATH_OLD_AGE`);
   shorter lives (60-90 s) make the founder cohort die together and 20-50% of runs go extinct. Experiment env: `EXP_SPACE`
   (0 = no cap), `EXP_LIFESPAN`. Multipliers 0.7 / 1.0 / 1.4 (break-even 0.048 / 0.067 / 0.071 must stay ordered).
-- THE METABOLISM ALLELE DOES NOT FLIP WITH FOOD, and we stopped trying (decision 2026-10-08). No limit, sexual, 10 seeds x 600 s:
-  `M` Scarce 0.5 s 0.49 to 0.18 (z -1.6), Default 0.37 (z -0.6), Plenty 0.46 (z -0.2). Why: the population grows until each lizard
-  gets about one meal per 10 s (its break-even) at every food level, so the type needing least food (`m`) wins; a cap does not
-  create a surplus (lizards eat when full). Teaching story and numbers: README "Selection pressures". Speed rises with food
-  (Plenty `S` 0.88, z +4.4) and color flips with hawks plus ground. Do not add mechanics to force the metabolism flip.
+- THE METABOLISM ALLELE DOES NOT FLIP WITH FOOD (decision 2026-10-08; re-measured at a verified-invariant 8x, no limit, sexual, 10 seeds x
+  600 s). `M` falls at every food level: Default 0.49 to 0.21 (z -3.0), Plenty 0.34 (z -0.7), Scarce 0.5 s 0.35 (z -0.7). Why: the
+  population grows until each lizard gets about one meal per 9 s (its break-even), so the type needing least food (`m`) wins; a cap
+  does not create a surplus. Teaching story and numbers: README "Selection pressures". Speed `S` reaches 0.93-0.97 in every row (food
+  level does not matter) and color flips with hawks plus ground. Do not add mechanics to force the metabolism flip.
 - Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
-- Extinction: 0-2 of 10 in default/Plenty runs and 1-4 of 10 in Scarce or hawk runs, varying run to run with the same settings
-  (e.g. Scarce 0.4 s: 0 of 20 once, 2 of 10 the next; 0.45 s: 6 of 20). A slow collapse starts when mating partners and young are
-  eaten or starve after a cohort dies together. Scarce 0.4 s is the mildest "Scarce" that mostly survives (UI word "normal"); 0.5 s
-  is "low" and loses 2-4 of 10.
+- Extinction at the invariant scale: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks on Grass/Sand/Rock at risk 0.006,
+  0.01 and 0.02) and 0 of 5 asexual. The 1-4 of 10 extinctions seen before 2026-10-08 were an artifact of the non-invariant 4x.

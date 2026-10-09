@@ -6,7 +6,7 @@ extends SceneTree
 ## Run (repeatable: fixed frame delta + seed):
 ##   ../Godot_v4.5-stable_win64.exe --headless --fixed-fps 60 --path . --script tests/experiment_selection.gd
 ## Settings via environment variables (all optional):
-##   EXP_SEEDS=1,2,3,4,5   EXP_SECONDS=600   EXP_MODES=sexual,asexual   EXP_SCALE=4 (Engine.time_scale)
+##   EXP_SEEDS=1,2,3,4,5   EXP_SECONDS=600   EXP_MODES=sexual,asexual   EXP_SCALE=8 (GameConfig.set_sim_speed; 1, 4 and 8 measured equivalent)
 ##   EXP_FOOD_INTERVAL=<s> EXP_FOOD_MAX=<n>  EXP_FOUNDERS=<n>   (override GameConfig for a variant)
 ##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  (environment controls)
 ##   EXP_CANNIBAL_EFF=<x> EXP_UPKEEP=slow,med,fast EXP_MEALMULT=low,med,high  (trade-off tuning overrides)
@@ -19,7 +19,7 @@ extends SceneTree
 const CHECKPOINTS: Array[float] = [0.25, 0.5, 0.75, 1.0]
 
 var _config: Node
-var _scale: float = 4.0
+var _scale: float = 8.0
 var _seconds: float = 600.0
 var _quiet: bool = false
 
@@ -48,7 +48,7 @@ func _env_float(key: String, fallback: float) -> float:
 func _run() -> void:
 	await get_root().ready
 	_config = get_root().get_node("/root/GameConfig")
-	_scale = _env_float("EXP_SCALE", 4.0)
+	_scale = _env_float("EXP_SCALE", 8.0)
 	_seconds = _env_float("EXP_SECONDS", 600.0)
 	_quiet = OS.get_environment("EXP_QUIET") == "1"
 	if OS.get_environment("EXP_FOOD_INTERVAL").is_valid_float():
@@ -128,7 +128,7 @@ func _run() -> void:
 						trace.append(str(series[i]))
 					_emit("EXP trace (extinct run, population every 20 s): " + " ".join(trace))
 		_report(mode_name, results)
-	Engine.time_scale = 1.0
+	_config.set_sim_speed(1.0)
 	quit(0)
 
 
@@ -139,10 +139,10 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 	_config.reproduction_mode = 1 if mode_name == "asexual" else 0
 	var main: Node = (load("res://Scenes/Main.tscn") as PackedScene).instantiate()
 	get_root().add_child(main)
-	Engine.time_scale = 1.0
+	_config.set_sim_speed(1.0)
 	await process_frame
 	await process_frame
-	Engine.time_scale = _scale
+	_config.set_sim_speed(_scale)
 	var started_ms: int = Time.get_ticks_msec()
 	var traj: Array[Dictionary] = []  # index 0 = start, then one entry per checkpoint
 	traj.append(_freqs(main.get_live_genotypes()))
@@ -173,7 +173,7 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 			while next_cp < CHECKPOINTS.size():
 				traj.append(_freqs([] as Array[Dictionary]))
 				next_cp += 1
-	Engine.time_scale = 1.0
+	_config.set_sim_speed(1.0)
 	var pop_end: int = _alive(main)
 	var live: Array[Dictionary] = main.get_live_genotypes()
 	var half: int = pops.size() / 2
@@ -386,7 +386,7 @@ func _bench(sizes_text: String) -> void:
 		_config.founder_count = target
 		var main: Node = (load("res://Scenes/Main.tscn") as PackedScene).instantiate()
 		get_root().add_child(main)
-		Engine.time_scale = 1.0
+		_config.set_sim_speed(1.0)
 		# warm-up: let eggs hatch so the AI and detection run
 		while float(main.simulation_time) < 12.0:
 			await process_frame

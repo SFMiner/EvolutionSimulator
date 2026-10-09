@@ -102,7 +102,9 @@ func _initialize_simulation():
 	update_ui()
 
 func spawn_initial_organisms():
-	# Spawn the founder batch (GameConfig.founder_count)
+	# Spawn the founder batch (GameConfig.founder_count); the strain prototype turns this off
+	if not GameConfig.spawn_founders:
+		return
 	for i in range(GameConfig.founder_count):
 		spawn_organism()
 
@@ -282,7 +284,7 @@ func _read_env_settings() -> void:
 		if secs.is_valid_float():
 			_shot_seconds = secs.to_float()
 		# Fast-forward through the engine clock so timers, AI and graphs all keep pace
-		Engine.time_scale = 4.0
+		GameConfig.set_sim_speed(4.0)
 
 func _setup_genetics_controls() -> void:
 	mode_option.clear()

@@ -35,6 +35,8 @@ var current_state: String = "egg"
 ## Why this lizard died (Ecology.DEATH_*); set in die().
 var death_cause: String = ""
 var generation: int = 1
+## Eggs this lizard would have laid (only counted when GameConfig.eggs_count_only is on).
+var eggs_laid: int = 0
 ## Seconds lived since hatching, and the lifespan rolled at hatch (0 until then; eggs don't age).
 var age: float = 0.0
 var lifespan: float = 0.0
@@ -574,6 +576,12 @@ func _start_reproduction_cooldown() -> void:
 func reproduce() -> void:
 	# Check if we have enough energy to reproduce
 	if energy < reproduction_cost:
+		return
+	# Prototype hook: count the egg and pay for it, but spawn nothing
+	if GameConfig.eggs_count_only:
+		eggs_laid += 1
+		energy -= reproduction_cost
+		_start_reproduction_cooldown()
 		return
 	# Space cap: no room for new nests (no mating, selfing or cloning); keep the energy and wait
 	if not Ecology.can_lay(GameConfig, live_count()):

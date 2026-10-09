@@ -65,6 +65,11 @@ var lifespan_seconds: float = 150.0
 var lifespan_spread: float = 0.2
 ## Show the per-lizard energy number and gene tags.
 var show_labels: bool = false
+# === PROTOTYPE HOOKS (strain-season prototype, tests/prototype_strains.gd; defaults keep normal play unchanged) ===
+## false: SimulationManager spawns no founder batch (the prototype places its own lizards).
+var spawn_founders: bool = true
+## true: an egg-laying event only counts (Organism.eggs_laid) and pays the egg cost; nothing is spawned.
+var eggs_count_only: bool = false
 
 # --- Genetics v2: single source of truth for reproduction settings ---
 enum ReproductionMode { SEXUAL, ASEXUAL }
@@ -79,6 +84,17 @@ var egg_cost: float = 20.0
 var partner_cost: float = 5.0
 ## Seconds a ready organism waits for a partner before self-fertilizing.
 var self_fertilize_after: float = 20.0
+
+# === SIMULATION SPEED ===
+## Fast-forward the simulation. Engine.time_scale alone makes every 1/60 s physics step cover `scale` times
+## more time, so lizards jump over food and Area2D overlaps are sampled too rarely: the biology changes.
+## Raising the physics tick rate with the scale keeps each step at 1/60 simulated seconds, so a fast run
+## is the SAME simulation, only faster. Always use this instead of setting Engine.time_scale directly.
+func set_sim_speed(scale: float) -> void:
+	var s: float = maxf(scale, 1.0)
+	Engine.time_scale = scale
+	Engine.physics_ticks_per_second = int(round(60.0 * s))
+	Engine.max_physics_steps_per_frame = maxi(8, int(ceil(s)) * 4)
 
 # Helper function to get random array element
 func get_random_element(array: Array):

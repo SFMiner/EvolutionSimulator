@@ -8,6 +8,7 @@ and the 0.7 / 1.0 / 1.4 meal values stay. Measured with no limit (sexual, 10 see
 z +4.4); color flips with hawks plus ground (z +1.2 to +1.7). Why `M` stays level at Plenty: the population grows
 until each lizard is back at break-even, and the type that needs the least food wins. Full table: README
 "Selection pressures". The text below is the original plan, kept for the design.
+(Update 2026-10-08: the results above were measured at a broken, non-invariant 4x time scale; the re-measured numbers are in the README.)
 
 Builds on `8cec173` and `Docs/Trade-offs and Environment.md`. Goal: the metabolism allele must FLIP with
 the environment (fast-living `M` wins when food is plentiful, thrifty `m` wins when it is scarce), the

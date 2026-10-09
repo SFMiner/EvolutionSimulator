@@ -165,27 +165,28 @@ evolution-simulator/
 - [x] `Ecology.gd` holds the pure rules; `tests/test_ecology.gd` tests them
 - [x] Display fixes: labels hidden by default ("Show labels" checkbox), whole-number energy, metabolism tag fixed, click-to-inspect box, one population number, food drawn in code, arena and panels no longer overlap (window 1200x648), debug prints gated by `DEBUG`
 - [x] Space cap, old age and the metabolism retune (spec: `Docs/Space and Life History.md`): Space slider (15-60 plus "No limit", the default), "Population: n" or "n / cap", old-age deaths, inspector age, break-even ordering test, capped smoke run, `EXP_SPACE` / `EXP_LIFESPAN`
-- [x] Decision: the metabolism allele is not made to flip with food. Thrifty `m` wins when food is short; at Plenty `M` stays near 0.5 (it never wins). Teaching story in "Selection pressures" below
-- [x] Color flips with the environment (Hawks on: the color matching the ground rises; z +1.6 on Grass, +1.7 on Sand, +1.2 on Rock; none reaches 2 sd)
-- [ ] Extinction in 0-3 of 10 runs (no limit: Default 2, Plenty 0, Scarce 0.5 s 2, hawks 0-3); target none / at most 1 is not met at Default, Scarce or on Grass/Sand with hawks
+- [x] Decision: the metabolism allele is not made to flip with food. Thrifty `m` wins at every food level (Default z -3.0; Plenty and Scarce lean the same way). Teaching story in "Selection pressures" below
+- [x] Color flips with the environment (Hawks on, risk 0.006: the color matching the ground rises; z +1.8 on Grass, +1.3 on Sand, +0.4 on Rock; at risk 0.02 z +6.6 / +6.5 / +12.0)
+- [x] Extinction: 0 of 10 in every measured sexual row and 0 of 5 asexual (1x-equivalent run, see below); the earlier 1-4 of 10 came from the broken 4x time scale
+- [x] Time-scale invariant simulation: `GameConfig.set_sim_speed(scale)` raises the physics tick rate with the time scale; 1x, 4x and 8x measured equivalent (`tests/test_time_scale.gd`)
 - [ ] Mate-seeking movement (out of scope by design)
-- [ ] Speed-up control in the UI (only pause exists; the gate uses `Engine.time_scale`)
+- [ ] Speed-up control in the UI (only pause exists; the gate uses `GameConfig.set_sim_speed`)
 
-### Selection pressures (measured: sexual mode, 10 seeds x 600 sim-s per row; mean allele frequency at the end, start about 0.5 for M/S/K; z = (end - start) / sd across seeds; see CLAUDE.md for how to rerun)
+### Selection pressures (measured at 1x-equivalent, i.e. `set_sim_speed(8)` on a verified time-scale-invariant simulation; sexual mode, 10 seeds x 600 sim-s per row; mean allele frequency at the end, start about 0.5 for M/S/K; z = (end - start) / sd across seeds; see CLAUDE.md for how to rerun)
 | Trait | Cost / benefit in the code | Result |
 |---|---|---|
-| Metabolism | high drains 3/s vs low 1/s; a meal is worth x0.7 / 1.0 / 1.4 (low / medium / high); no space limit, lifespan 150 s | Thrifty `m` wins when food is short: Scarce 0.5 s `M` 0.49 to 0.18 (z -1.6, 8 surviving runs). Default `M` 0.37 (z -0.6) and Scarce 0.4 s 0.35 (z -0.6) lean the same way; at Plenty `M` stays near the start (0.46, z -0.2). It does NOT flip to `M` at Plenty: the population grows until each lizard is back to break-even (about one meal per 10 s at every food level), and the type that needs the least food wins. Asexual (5 seeds): Default `M` 0.58, Plenty 0.43, Scarce 0.42, all within drift |
-| Speed | fast 60 px/s vs slow 20; upkeep 0 / 0.4 / 0.9 energy per second | Fast wins when food is plentiful: Plenty `S` 0.88 (z +4.4), Default 0.75 (z +1.4), Scarce 0.4 s 0.58 (z +0.3), Scarce 0.5 s 0.43 (z -0.3). Asexual (5 seeds) is stronger: `S` 0.89 Default, 0.91 Plenty, 0.87 Scarce. Faster rises with food, but slow never clearly wins even when food is short |
-| Growth rate | fast hatches in 4 s and needs 3 meals; slow gets 2x juvenile energy per meal but needs 8 | Slow-growing `g` tends to win with no space limit: `G` 0.27 at Plenty (z -1.3), 0.38 Default (z -0.4), 0.16 Scarce 0.5 s (z -2.3). Asexual `G` falls to 0.05 in all three. Treat it as a lean, not a flip |
-| Color | camouflage against hawks: risk 0.6%/s, x0.05 when the color matches the ground | This is the trait that flips with the environment. Hawks on: Grass `Cg` 0.25 to 0.62 (z +1.6; `Cy` falls to 0.20, z -2.7); Sand `Cb` 0.15 to 0.50 (z +1.7); Rock `Cy` 0.59 to 0.80 (z +1.2). Right color rises on every ground, none reaches 2 sd because 24 founders drift a lot. Hawks off (Default): drift (`Cb` +0.5, `Cg` +0.2, `Cy` -0.7 z) |
-| Cannibal | eats organisms <= half its size for their energy; x0.6 energy from plants | `K` (non-cannibal) rises almost everywhere: Plenty 0.83 (z +4.7), Default 0.75 (z +1.9), Scarce 0.4 s 0.75 (z +2.2), Scarce 0.5 s 0.61 (z +0.2, 2 extinctions); hawks runs z +1.0 to +3.4. Cannibals are never favored |
+| Metabolism | high drains 3/s vs low 1/s; a meal is worth x0.7 / 1.0 / 1.4 (low / medium / high); no space limit, lifespan 150 s | Thrifty `m` wins at every food level: Default `M` 0.49 to 0.21 (z -3.0), Plenty 0.34 (z -0.7), Scarce 0.5 s 0.35 (z -0.7). It does NOT flip to `M` at Plenty: the population grows until each lizard is back to break-even (about one meal per 9 s at every food level), and the type that needs the least food wins. Asexual (5 seeds): Default `M` 0.58, Plenty 0.43, Scarce 0.34, all within drift |
+| Speed | fast 60 px/s vs slow 20; upkeep 0 / 0.4 / 0.9 energy per second | Fast wins at every food level and every ground: sexual `S` 0.93 Default (z +8.3), 0.95 Plenty (z +11.9), 0.96 Scarce 0.5 s (z +8.9); with hawks 0.93-0.97. Asexual (5 seeds): 0.96 Default, 0.94 Plenty, 0.94 Scarce. Slow never wins, so speed is a one-way lesson |
+| Growth rate | fast hatches in 4 s and needs 3 meals; slow gets 2x juvenile energy per meal but needs 8 | Slow-growing `g` leans ahead with no space limit: `G` 0.31 at Plenty (z -1.3), 0.34 Default (z -1.0), 0.40 Scarce 0.5 s (z -0.4). Asexual `G` 0.16 Default (z -2.0), 0.10 Plenty (z -7.1), 0.46 Scarce (z -0.8). Treat it as a lean, not a flip |
+| Color | camouflage against hawks: risk 0.6%/s, x0.05 when the color matches the ground | This is the trait that flips with the environment, and the effect grows with the hawk risk. Right color end mean (z) at risk 0.006 / 0.01 / 0.02: Grass `Cg` 0.24 to 0.58 (+1.8) / 0.61 (+1.9) / 0.75 (+6.6); Sand `Cb` 0.18 to 0.47 (+1.3) / 0.56 (+3.3) / 0.71 (+6.5); Rock `Cy` 0.59 to 0.72 (+0.4) / 0.83 (+1.2) / 0.97 (+12.0). At the default 0.006 only the Grass result nears 2 sd (24 founders drift a lot), so a stronger hawk (0.01-0.02) shows it clearly. Hawks off (Default): drift (`Cb` +0.1, `Cg` +0.4, `Cy` -0.4 z) |
+| Cannibal | eats organisms <= half its size for their energy; x0.6 energy from plants | `K` (non-cannibal) rises everywhere: Plenty 0.73 (z +1.6), Default 0.69 (z +1.7), Scarce 0.5 s 0.73 (z +1.9); hawks runs z +1.0 to +3.0. Cannibals are never favored |
 
-Populations (2nd-half mean, no space limit): Plenty 40, Default 27, Scarce 0.4 s 24, Scarce 0.5 s 22 (more food makes more lizards, not better-fed ones: plant meals per lizard-second stay at 0.09-0.11, one meal per 9-11 s, at every food level). Extinctions out of 10 sexual runs: Default 2, Plenty 0, Scarce 0.4 s 1, Scarce 0.5 s 2, Hawks on Grass 2 / Sand 3 / Rock 0. Rows are the mean over surviving runs; the sd and z are across those runs, so z moves a lot between repeats (an earlier Scarce 0.5 s repeat gave `M` z -3.8).
+Populations (2nd-half mean, no space limit): Plenty 39, Default 27, Scarce 0.5 s 18, hawks rows 25-26 (more food makes more lizards, not better-fed ones: plant meals per lizard-second stay at 0.11-0.12, one meal per 8.4-9.2 s, at every food level). Asexual (5 seeds): Plenty 48, Default 38, Scarce 26. Extinctions: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks on Grass / Sand / Rock at risk 0.006, 0.01 and 0.02) and 0 of 5 asexual. The sd and z are across seeds, so z moves between repeats. Numbers from before 2026-10-08 were measured at a non-invariant 4x time scale and no longer apply.
 
 What to teach with it:
-1. Thrifty metabolism `m` wins when food is short.
+1. Thrifty metabolism `m` wins at every food level (strongest at Default).
 2. More food makes more lizards, not better-fed ones.
-3. Color is the trait that flips with the environment (hawks plus the ground color).
+3. Color is the trait that flips with the environment (hawks plus the ground color); raise the hawk risk to 0.01-0.02 to make it obvious.
 4. The Space slider is the carrying capacity. It is optional (the default is no limit); capping it mainly changes the population size (a cap of 28 also weakened the Scarce `m` result, so leave it off for that lesson).
 5. Metabolism does NOT flip to `M` at Plenty, because the population grows until each lizard is back to break-even and the type that needs the least food wins.
 
@@ -238,7 +239,7 @@ var food_interval_plenty = 0.25
 ## Testing
 
 ### Smoke Test Protocol
-1. Run simulation for 2 minutes at 4x speed
+1. Run simulation for 2 minutes at 4x speed (`set_sim_speed`)
 2. Verify organisms hatch, grow, eat, reproduce, and die
 3. Check that traits affect survival (high metabolism organisms die faster)
 4. Confirm population and generation counters update correctly
