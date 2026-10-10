@@ -107,6 +107,9 @@ func _ready():
 	if DEBUG:
 		print("Organism detection area set up, waiting for food...")
 	set_labels_visible(GameConfig.show_labels)
+	var cam: Camera2D = get_viewport().get_camera_2d()
+	if cam != null:
+		apply_label_zoom(cam.zoom.x)
 
 func _find_organism_ancestor(node: Node) -> Organism:
 	var n: Node = node
@@ -269,6 +272,13 @@ func update_gene_tags():
 	# Color shown as Gn/B/Gy
 	if color_label != null:
 		color_label.text = _color_abbrev(str(genome.get("color", "green")))
+
+## Counter-scale the energy number and gene tags so they keep their on-screen size when the camera zooms in.
+func apply_label_zoom(level: float) -> void:
+	var s: Vector2 = Vector2.ONE / maxf(level, 0.001)
+	for label: Control in [$Label, gene_tags]:
+		label.pivot_offset = label.size * 0.5
+		label.scale = s
 
 ## Show or hide the energy number and gene tags (the "Show labels" checkbox).
 func set_labels_visible(on: bool) -> void:

@@ -87,7 +87,10 @@ func refresh() -> void:
 		lines.append("Age: not hatched yet")
 	_label.text = "\n".join(lines)
 	# Follow the lizard on screen, kept inside the window
-	var screen: Vector2 = _target.get_global_transform_with_canvas().origin + BOX_OFFSET
+	var on_screen: Vector2 = _target.get_global_transform_with_canvas().origin
+	# Zoomed in, the lizard can scroll out of the arena view: hide the box (keep the selection) until it returns
+	visible = ZoomCamera.ARENA_SCREEN.has_point(on_screen)
+	var screen: Vector2 = on_screen + BOX_OFFSET
 	var view: Vector2 = get_viewport().get_visible_rect().size
 	var box: Vector2 = get_combined_minimum_size()
 	size = box

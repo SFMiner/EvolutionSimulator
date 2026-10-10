@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://main_scene_unique"]
+[gd_scene load_steps=7 format=3 uid="uid://main_scene_unique"]
 
 [ext_resource type="PackedScene" uid="uid://kixqpupev4wl" path="res://Scenes/Environment.tscn" id="1_0x0x0"]
 [ext_resource type="Script" path="res://Scripts/UI/SimulationManager.gd" id="2_0x0x0"]
@@ -6,6 +6,7 @@
 
 [ext_resource type="Script" path="res://Scripts/UI/AlleleGraph.gd" id="4_0x0x0"]
 [ext_resource type="Script" path="res://Scripts/UI/Inspector.gd" id="5_0x0x0"]
+[ext_resource type="Script" path="res://Scripts/UI/ZoomCamera.gd" id="6_zoomcam"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("2_0x0x0")
@@ -14,6 +15,7 @@ script = ExtResource("2_0x0x0")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 enabled = true
+script = ExtResource("6_zoomcam")
 
 [node name="UI" type="CanvasLayer" parent="."]
 process_mode = 3

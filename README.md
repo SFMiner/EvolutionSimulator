@@ -168,7 +168,10 @@ evolution-simulator/
 - [x] Space cap, old age and the metabolism retune (spec: `Docs/Space and Life History.md`): Space slider (15-60 plus "No limit", the default), "Population: n" or "n / cap", old-age deaths, inspector age, break-even ordering test, capped smoke run, `EXP_SPACE` / `EXP_LIFESPAN`
 - [x] Speed is a real trade-off (2026-10-09): upkeep 0 / 3.5 / 7.5 makes fast `S` rise at Plenty (0.75), stay polymorphic at Default (0.48) and fall at Scarce (0.16). With the old upkeep (0.9) fast won everywhere. Metabolism now also moves with food as a side effect (see "Selection pressures")
 - [x] Color flips with the environment (Hawks on, default risk 0.02: the color matching the ground rises; z +2.3 on Grass, +4.3 on Sand, +9.9 on Rock)
-- [x] Extinction: 0 of 10 in every measured sexual row except Sand with hawks (1 of 10) and 0 of 5 asexual (1x-equivalent run, see below); the earlier 1-4 of 10 came from the broken 4x time scale
+- [x] Extinction (30 seeds, 2026-10-10): 0 of 90 runs without hawks; about 8% of runs with hawks on from the start, also in the old game. The cause is an Allee trap: when only 3-8 adults are left, ready adults rarely meet a mate (see CLAUDE.md)
+- [x] Hawks arrive gradually: after the switch, the risk rises from 0 to full over 60 s ("Hawks (arriving)")
+- [x] Zoom: mouse wheel or trackpad pinch zooms toward the cursor (1x-5x); right- or middle-drag or the arrow keys pan; + / - zoom; 0 resets. The view stays inside the arena, labels keep their size, and it works while paused
+- [ ] Fix the Allee trap (ideas: ready adults seek each other; keep the selfing wait through short energy dips; stagger the founder hatch)
 - [x] Time-scale invariant simulation: `GameConfig.set_sim_speed(scale)` raises the physics tick rate with the time scale; 1x, 4x and 8x measured equivalent (`tests/test_time_scale.gd`)
 - [ ] Mate-seeking movement (out of scope by design)
 - [ ] Speed-up control in the UI (only pause exists; the gate uses `GameConfig.set_sim_speed`)
