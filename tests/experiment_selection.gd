@@ -13,6 +13,7 @@ extends SceneTree
 ##   EXP_EGG_COST=<energy> (parent pays it, hatchling starts with it)
 ##   EXP_BUGS=0|1 (bugs_enabled)  EXP_BUG_ENERGY=<energy>  EXP_BUG_RATIO=<x food interval per bug>  EXP_BUG_MAX=<n>
 ##   EXP_BUG_SPEED=<px/s>  EXP_BODY_SIZE=<fraction> (draw size of lizards, insects and beetles; ecology unchanged)
+##   EXP_MATE_SEEK=<px, 0 = off>  EXP_WAIT_KEEPS=0|1  EXP_HATCH_SPREAD=<s>  (Allee-trap fixes, see GameConfig)
 ##   EXP_CANNIBALS=0 turns all cannibal predation off (pair with EXP_CANNIBAL_EFF=1 to remove the small-insect penalty too)
 ##   EXP_OUT=<file> also appends every EXP line to a file (Godot prints are very slow when piped
 ##   on Windows; run with stdout to /dev/null and read the file instead).
@@ -104,6 +105,12 @@ func _run() -> void:
 		_config.space_cap = OS.get_environment("EXP_SPACE").to_int()  # 0 = no cap
 	if OS.get_environment("EXP_LIFESPAN").is_valid_float():
 		_config.lifespan_seconds = OS.get_environment("EXP_LIFESPAN").to_float()
+	if OS.get_environment("EXP_MATE_SEEK").is_valid_float():
+		_config.mate_seek_radius = OS.get_environment("EXP_MATE_SEEK").to_float()
+	if OS.get_environment("EXP_WAIT_KEEPS") != "":
+		_config.mate_wait_keeps = OS.get_environment("EXP_WAIT_KEEPS") != "0"
+	if OS.get_environment("EXP_HATCH_SPREAD").is_valid_float():
+		_config.founder_hatch_spread = OS.get_environment("EXP_HATCH_SPREAD").to_float()
 	if OS.get_environment("EXP_FOUNDERS").is_valid_int():
 		_config.founder_count = OS.get_environment("EXP_FOUNDERS").to_int()
 	var seeds: Array[int] = []
@@ -407,6 +414,13 @@ func _report_diag(results: Array[Dictionary]) -> void:
 	for key: String in causes:
 		cause_line.append("%s %.0f (sd %.0f)" % [key, _mean(cause_vals[key] as Array[float]), _sd(cause_vals[key] as Array[float])])
 	_emit("EXP deaths per run (mean, sd): " + ", ".join(cause_line))
+	var birth_line: PackedStringArray = PackedStringArray()
+	for key: String in ["mating", "self", "clone"]:
+		var vals: Array[float] = []
+		for r: Dictionary in results:
+			vals.append(float((r["births"] as Dictionary).get(key, 0)))
+		birth_line.append("%s %.0f (sd %.0f)" % [key, _mean(vals), _sd(vals)])
+	_emit("EXP births per run (mean, sd): " + ", ".join(birth_line))
 	var stage_line: PackedStringArray = PackedStringArray()
 	for key: String in stages:
 		stage_line.append("%s %.1f (sd %.1f)" % [key, _mean(stage_vals[key] as Array[float]), _sd(stage_vals[key] as Array[float])])

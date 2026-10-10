@@ -9,6 +9,9 @@ var current_direction: Vector2 = Vector2.ZERO
 var target_position: Vector2 = Vector2.ZERO
 var is_seeking_food: bool = false
 var detected_food: Node2D = null
+## Ready adult this (ready) lizard is walking toward to mate (GameConfig.mate_seek_radius), rechecked twice a second.
+var mate_target: Organism = null
+var _mate_check: float = 0.0
 
 func _ready():
 	# Start with random direction
@@ -32,9 +35,19 @@ func _physics_process(delta):
 	if is_seeking_food and !(detected_food is Organism) and !(detected_food is Bug) and organism.is_full():
 		clear_food_target()
 	
+	# Ready to breed but no partner in mating range: walk toward the nearest ready adult
+	_mate_check -= delta
+	if _mate_check <= 0.0:
+		_mate_check = 0.5
+		mate_target = _pick_mate_target()
+	if mate_target != null and (!is_instance_valid(mate_target) or !mate_target.is_ready_to_mate() or !organism.is_ready_to_mate()):
+		mate_target = null
+
 	# Move towards target or in current direction
 	var direction: Vector2
-	if is_seeking_food:
+	if mate_target != null:
+		direction = (mate_target.position - organism.position).normalized()
+	elif is_seeking_food:
 		# Refresh target position to follow moving target
 		if detected_food != null and is_instance_valid(detected_food):
 			target_position = detected_food.position
@@ -57,7 +70,7 @@ func _physics_process(delta):
 		print("AI moving: direction=", direction, " speed=", speed, " state=", organism.current_state, seeking_text)
 	
 	# Check if we've reached the target
-	if organism.position.distance_to(target_position) < 10:
+	if mate_target == null and organism.position.distance_to(target_position) < 10:
 		if is_seeking_food:
 			# Close to target (food or prey). Reuse organism's handler for either case
 			if detected_food != null:
@@ -107,6 +120,17 @@ func _physics_process(delta):
 					break
 		if chosen != null:
 			set_food_target(chosen)
+
+## Nearest ready adult within GameConfig.mate_seek_radius, if this lizard is ready, the mode is sexual and no
+## partner is already close (within half of mate_radius, so the pair ends up inside it); otherwise null.
+func _pick_mate_target() -> Organism:
+	var radius: float = float(GameConfig.mate_seek_radius)
+	if radius <= 0.0 or GameConfig.reproduction_mode != GameConfig.ReproductionMode.SEXUAL or !organism.is_ready_to_mate():
+		return null
+	var other: Organism = organism.nearest_ready_adult(radius)
+	if other == null or organism.position.distance_to(other.position) <= GameConfig.mate_radius * 0.5:
+		return null
+	return other
 
 func change_direction():
 	# Stop current movement animation

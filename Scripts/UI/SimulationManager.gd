@@ -124,6 +124,8 @@ func spawn_organism():
 	var organism = organism_scene.instantiate()
 	organism.rng = rng
 	organism.genotype = EvoGenetics.random_founder(rng)
+	# Founders hatch spread out, so they don't all compete for the first insects at once
+	organism.extra_incubation = rng.randf() * GameConfig.founder_hatch_spread
 	organism_container.add_child(organism)
 	
 	# Random position

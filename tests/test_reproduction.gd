@@ -27,6 +27,7 @@ func _run() -> void:
 	await _test_mating()
 	await _test_out_of_range_then_self()
 	await _test_asexual()
+	await _test_allee_fixes()
 	await _test_energy_hawks_tags()
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -107,6 +108,42 @@ func _test_asexual() -> void:
 	_check(is_equal_approx(b.energy, 90.0), "no partner cost when cloning")
 	_config.reproduction_mode = 0
 	await _cleanup([a, b])
+
+
+## Allee-trap fixes: ready adults walk toward a far partner, a dip keeps most of the selfing wait, founders' eggs hatch spread out.
+func _test_allee_fixes() -> void:
+	_config.reproduction_mode = 0
+	var a: Node = _make(Vector2(0, 0), {"speed": ["S", "s"]}, 8)
+	var far: Node = _make(Vector2(300, 0), {"speed": ["s", "s"]}, 9)
+	_check(a.find_mate() == null and a.nearest_ready_adult(_config.mate_seek_radius) == far, "a partner 300 px away is sensed but not in mating range")
+	var ai: Node = a.get_node("AI")
+	_check(ai._pick_mate_target() == far, "a ready adult walks toward the far partner")
+	far.position = Vector2(30, 0)
+	_check(ai._pick_mate_target() == null, "no walking once the partner is close")
+	far.position = Vector2(300, 0)
+	var old_seek: float = _config.mate_seek_radius
+	_config.mate_seek_radius = 0.0
+	_check(ai._pick_mate_target() == null, "mate_seek_radius 0 turns seeking off")
+	_config.mate_seek_radius = old_seek
+	# An energy dip counts the selfing wait down by one tick instead of restarting it
+	a._mate_wait = 10.0
+	a.energy = 50.0
+	a._on_energy_timer_timeout()
+	_check(is_equal_approx(a._mate_wait, 9.0), "a one-second dip costs one second of the selfing wait")
+	_config.mate_wait_keeps = false
+	a._mate_wait = 10.0
+	a.energy = 50.0
+	a._on_energy_timer_timeout()
+	_check(is_equal_approx(a._mate_wait, 0.0), "mate_wait_keeps false restarts the wait (old rule)")
+	_config.mate_wait_keeps = true
+	await _cleanup([a, far])
+	# Extra incubation is added to the egg timer
+	var scene: PackedScene = load("res://Scenes/Organism.tscn")
+	var egg: Node = scene.instantiate()
+	egg.extra_incubation = 12.0
+	get_root().add_child(egg)
+	_check(is_equal_approx(egg.growth_timer.wait_time, float(_config.growth_timers[egg.genome.growth_rate]) + 12.0), "extra incubation lengthens the egg timer")
+	await _cleanup([egg])
 
 
 func _test_energy_hawks_tags() -> void:

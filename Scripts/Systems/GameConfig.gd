@@ -113,6 +113,16 @@ var egg_cost: float = 20.0
 var partner_cost: float = 5.0
 ## Seconds a ready organism waits for a partner before self-fertilizing.
 var self_fertilize_after: float = 20.0
+# Allee-trap fixes. After the founders' first-minute die-off, 2-4 ready adults could spend minutes apart with no
+# births (see CLAUDE.md "Allee trap"). Each fix has its own knob so it can be measured alone.
+## Sexual mode: a ready adult with no partner within mate_radius walks toward the nearest ready adult within this
+## many px (0 = off; 400+ covers most of the 800 x 600 arena).
+var mate_seek_radius: float = 400.0
+## true: a dip below reproduction_energy counts the self-fertilize wait down by the dip's length; false: restarts it.
+var mate_wait_keeps: bool = true
+## The founders' eggs hatch spread over this many extra seconds instead of all together (0 = together). Off: 30 s
+## changed nothing measurable (hawk rows 8 of 90 extinct vs 9 with no fix, seeds 11-40).
+var founder_hatch_spread: float = 0.0
 
 # === SIMULATION SPEED ===
 ## Fast-forward the simulation. Engine.time_scale alone makes every 1/60 s physics step cover `scale` times

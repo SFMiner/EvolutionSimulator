@@ -101,9 +101,14 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   minute; hawks add a few deaths, pushing the population to 3-8 adults. Then 2-4 adults sit "ready" for minutes with almost no
   births: mating needs a partner within mate_radius 90 px of the 800x600 arena, and selfing needs 20 s of UNBROKEN readiness
   (`_mate_wait` resets whenever energy dips below reproduction_energy). Hawk risk 0.012-0.02 and a 60 s ramp
-  (`hawk_ramp_seconds`, kept for play) all gave 5-9 of 90. Untested fixes: ready adults seek each other; do not reset the
-  selfing wait on a dip; stagger the founder hatch.
+  (`hawk_ramp_seconds`, kept for play) all gave 5-9 of 90. FIXED (seeds 11-40, hawk rows; no fix 9 of 90): ready adults walk
+  to the nearest ready adult within `mate_seek_radius` 400 (alone 1 of 90; births ~130 -> ~185, selfing ~10 -> ~0);
+  `mate_wait_keeps` (a dip counts the selfing wait down, not to 0; alone 4 of 90); both together (shipped) 1 of 90.
+  `founder_hatch_spread` 30 s alone 8 of 90 = no effect, so it defaults to 0. Food rows with the fixes: 0 of 90, populations
+  Default ~20 / Plenty ~26 / Scarce ~20 (were 16 / 21 / 16); speed z Scarce -0.9/-1.4, Plenty +1.4/+0.9 and M Plenty +1.6/+1.5
+  kept, M at Scarce weaker (-0.1/-0.3, was -0.5/-0.5). Color z unchanged. Knobs: EXP_MATE_SEEK, EXP_WAIT_KEEPS, EXP_HATCH_SPREAD;
+  the report now prints births per run by kind.
 - Hawk default risk is 0.02 (was 0.006: color selection was weak). Color z: Grass +2.3, Sand +4.3, Rock +9.9; one Sand extinction in 10.
 - Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
-- Extinction at the invariant scale: food rows (no hawks) ~0 (0 of 90, seeds 11-40); hawk rows started from founders ~10% (see
-  beetles bullet). Judge extinction rates on 30+ seeds: 10 seeds gave 1 of 30 hawk runs where the true rate is ~10%.
+- Extinction at the invariant scale: food rows (no hawks) ~0 (0 of 90, seeds 11-40); hawk rows ~10% before the Allee-trap
+  fix, 1 of 90 after it (see the Allee-trap bullet). Judge extinction rates on 30+ seeds: 10 seeds gave 1 of 30 hawk runs where the true rate is ~10%.

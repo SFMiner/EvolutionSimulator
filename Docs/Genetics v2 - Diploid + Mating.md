@@ -4,7 +4,8 @@ Goal: replace the single-value "genome" with real diploid genes (allele pairs wi
 the shared Genome Engine. Add sexual reproduction by **proximity mating**, keeping cloning as a
 toggle, so students can watch selection change **allele frequencies**, including recessive alleles
 hiding in heterozygotes. Keeps the "lightweight" intent of `Lightweight & Modular
-Recommendations.md`: no mate-seeking AI.
+Recommendations.md`: no mate-seeking AI. (Changed 2026-10-10: a minimal straight-line walk to the nearest ready
+adult, `GameConfig.mate_seek_radius`, fixed the hawk-row extinctions; see README.)
 
 ## Engine
 - Vendor `addons/genome/` from `../genome-engine` with `bash tools/sync_genome.sh ../evolution-simulator`

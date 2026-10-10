@@ -40,6 +40,8 @@ var eggs_laid: int = 0
 ## Seconds lived since hatching, and the lifespan rolled at hatch (0 until then; eggs don't age).
 var age: float = 0.0
 var lifespan: float = 0.0
+## Extra seconds in the egg, set before add_child (founders get a random share of GameConfig.founder_hatch_spread).
+var extra_incubation: float = 0.0
 var growth_progress: float = 0.0  # 0.0 to 1.0 for gradual growth during juvenile phase
 
 # Tables and ecology numbers come from GameConfig (single source of truth)
@@ -90,7 +92,7 @@ func _ready():
 	energy_timer.timeout.connect(_on_energy_timer_timeout)
 	energy_timer.start()
 	
-	growth_timer.wait_time = growth_timers[genome.growth_rate]
+	growth_timer.wait_time = growth_timers[genome.growth_rate] + extra_incubation
 	growth_timer.timeout.connect(_on_growth_timer_timeout)
 	growth_timer.start()
 	
@@ -333,6 +335,9 @@ func _on_energy_timer_timeout():
 	# Check for reproduction
 	if energy >= reproduction_energy and current_state == "adult":
 		reproduce()
+	elif GameConfig.mate_wait_keeps:
+		# A short dip (e.g. walking to a partner) only costs its own length of the self-fertilize wait
+		_mate_wait = maxf(_mate_wait - energy_timer.wait_time, 0.0)
 	else:
 		_mate_wait = 0.0
 
@@ -590,8 +595,12 @@ func is_ready_to_mate() -> bool:
 
 ## Nearest other ready adult within GameConfig.mate_radius, or null.
 func find_mate() -> Organism:
+	return nearest_ready_adult(GameConfig.mate_radius)
+
+## Nearest other ready adult within `radius` px, or null.
+func nearest_ready_adult(radius: float) -> Organism:
 	var best: Organism = null
-	var best_d: float = GameConfig.mate_radius
+	var best_d: float = radius
 	for node: Node in get_tree().get_nodes_in_group("organisms"):
 		var other: Organism = node as Organism
 		if other == null or other == self or !other.is_ready_to_mate():
