@@ -5,7 +5,10 @@ extends Control
 const MAX_SAMPLES: int = 600
 const FONT_SIZE: int = 13
 const SMALL_FONT_SIZE: int = 11
-const PLOT_RECT: Rect2 = Rect2(34.0, 70.0, 154.0, 160.0)
+## Leaves room on the right for each line's allele name, so the lines are not told apart by colour alone.
+const PLOT_RECT: Rect2 = Rect2(34.0, 70.0, 130.0, 160.0)
+## Smallest vertical gap between two line-end names before they are pushed apart.
+const END_LABEL_GAP: float = 12.0
 
 var _locus_option: OptionButton
 var _font: Font
@@ -37,6 +40,11 @@ func _ready() -> void:
 	_locus_option.size = Vector2(maxf(size.x, 200.0) - 16.0, 28.0)
 	_locus_option.item_selected.connect(_on_locus_selected)
 	add_child(_locus_option)
+
+
+## The gene picker, for the keyboard Tab order.
+func locus_option() -> OptionButton:
+	return _locus_option
 
 
 func _on_locus_selected(index: int) -> void:
@@ -117,6 +125,19 @@ func _draw() -> void:
 				var y: float = PLOT_RECT.position.y + PLOT_RECT.size.y * (1.0 - clampf(series[i], 0.0, 1.0))
 				points.append(Vector2(x, y))
 			draw_polyline(points, _allele_color(_selected_locus, allele), 2.0, true)
+
+	# Name each line at its right end, pushed apart where lines end close together
+	var ends: Array[Dictionary] = []
+	for allele: String in locus.alleles:
+		var series: Array[float] = per_allele[allele]
+		if series.size() >= 2:
+			ends.append({"allele": allele, "y": PLOT_RECT.position.y + PLOT_RECT.size.y * (1.0 - clampf(series[-1], 0.0, 1.0))})
+	ends.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["y"]) < float(b["y"]))
+	var last_y: float = -INF
+	for e: Dictionary in ends:
+		var y: float = maxf(float(e["y"]), last_y + END_LABEL_GAP)
+		last_y = y
+		_text(Vector2(PLOT_RECT.end.x + 4.0, y + 4.0), str(e["allele"]), SMALL_FONT_SIZE, _allele_color(_selected_locus, str(e["allele"])))
 
 	# Legend with current share
 	var ly: float = PLOT_RECT.end.y + 34.0

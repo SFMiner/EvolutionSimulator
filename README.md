@@ -51,8 +51,9 @@ If the autoload doesn't work automatically:
 
 ### What You'll See
 - **Small white eggs**: Eggs (stationary, 20% scale)
-- **Growing yellow lizards**: Juveniles (moving, gradually scaling from 20% to 100%)
-- **Full-sized colored lizards**: Adults (green/brown/gray based on genetics, 100% scale)
+- **Growing lizards**: Juveniles (moving, gradually scaling from 20% to 100%, already in their genetic color, since hawks judge camouflage by it at every stage)
+- **Full-sized lizards**: Adults (green/brown/gray based on genetics, 100% scale)
+- **A short yellow blink**: a lizard just ate
 - **Tiny red-orange insects (ants)**: Food items, each facing a random direction (drawn in code)
 - **Brown beetles**: Large prey about hatchling size, worth 60 energy (an insect is 30). Only adults can eat them. They crawl at 10 px/s (`GameConfig.bug_speed`). Everything is drawn at half size (`GameConfig.body_size`, 0.5); ecology numbers are unchanged
 - **Animated movement**: Lizards walk with directional animations
@@ -92,8 +93,8 @@ evolution-simulator/
 
 ### Organism Lifecycle
 1. **Egg Stage**: Organisms start as eggs (white sprites, 20% scale, stationary)
-2. **Juvenile Stage**: After growth timer, become juveniles (yellow sprites, gradually scaling from 20% to 100%, animated movement)
-3. **Adult Stage**: After second growth timer, become adults (colored based on genetics, 100% scale, animated movement)
+2. **Juvenile Stage**: After growth timer, become juveniles (genetic color, gradually scaling from 20% to 100%, animated movement)
+3. **Adult Stage**: After second growth timer, become adults (100% scale, animated movement)
 4. **Death**: Occurs when energy reaches zero, when a cannibal or hawk catches the lizard, or at old age
 
 ### Energy System
@@ -173,7 +174,14 @@ evolution-simulator/
 - [x] Zoom: mouse wheel or trackpad pinch zooms toward the cursor (1x-5x); right- or middle-drag or the arrow keys pan; + / - zoom; 0 resets. The view stays inside the arena, labels keep their size, and it works while paused
 - [x] Allee-trap fix: a ready adult with no partner within 90 px walks toward the nearest ready adult within 400 px (`mate_seek_radius`), and a short energy dip only counts the self-fertilize wait down instead of restarting it (`mate_wait_keeps`). Hawk rows 9 -> 1 of 90 extinct, populations about 20% larger, selfing nearly gone. A staggered founder hatch (`founder_hatch_spread`) did nothing and is off
 - [x] Time-scale invariant simulation: `GameConfig.set_sim_speed(scale)` raises the physics tick rate with the time scale; 1x, 4x and 8x measured equivalent (`tests/test_time_scale.gd`)
-- [ ] Speed-up control in the UI (only pause exists; the gate uses `GameConfig.set_sim_speed`)
+- [x] Speed button next to Pause: 1x / 2x / 4x through `GameConfig.set_sim_speed` (2026-10-10)
+- [x] Keyboard use and the sims-site keyboard exit (2026-10-10, `Scripts/UI/KeyboardNav.gd`): Tab walks the 11 controls with a yellow focus outline; Tab past the last, Shift+Tab before the first and Escape send `sims:leave-game` to the play page; Escape closes the lizard box first; Space pauses and N inspects the next lizard when no control has focus. `tests/test_keyboard.gd`, and checked in a real web export in headless Chromium with a copy of the play page's listener
+- [x] Allele graph lines are named at their right ends (not colour alone)
+- [x] Camouflage you can see (2026-10-10): each colour gene is drawn as its own ground's colour 15% lighter (`Ecology.lizard_tint`), from hatching on; eggs stay white. Before, the tint multiplied the lime sprite, so "gray" lizards were green and none matched its ground
+- [x] Web export: GL Compatibility renderer, no threads, 2D + GUI lean template (OptionButtons), preset "Web" writes to `..\exports\evolution-simulator\` (wasm 24 MB, pck 116 KB)
+- [ ] Small frames: the fixed 1200 x 648 layout scales down, so text is tiny in a 360 px tall frame or on a phone in portrait; full screen in landscape is readable
+- [x] Sims-site import, hidden (2026-10-10, release 20261010T231618): https://sims.mr-miner.com/g/evolution-simulator/index.html
+- [ ] Play-test on the site with a real keyboard, then publish (Sean's call)
 
 ### Selection pressures (measured at 1x-equivalent, i.e. `set_sim_speed(8)` on a verified time-scale-invariant simulation; sexual mode, 10 seeds x 600 sim-s per row; mean allele frequency at the end, start about 0.5 for M/S/K; z = (end - start) / sd across seeds; see CLAUDE.md for how to rerun)
 | Trait | Cost / benefit in the code | Result |
@@ -186,13 +194,15 @@ evolution-simulator/
 
 Populations (2nd-half mean, no space limit): Plenty 17, Default 15, Scarce 0.5 s 16, hawks rows 15-16 (the 3.5 / 7.5 speed upkeep costs a lot of energy, so populations are about half of the old 27 at Default; the number barely depends on food now, but insect meals per lizard-second do: 0.25 at Plenty, 0.21 Default, 0.13 Scarce). Asexual (5 seeds): Plenty 29, Default 25, Scarce 21. Extinctions: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks on Grass / Rock at risk 0.02) except Sand with hawks (1 of 10), and 0 of 5 asexual. The sd and z are across seeds, so z moves between repeats. Numbers from before 2026-10-08 were measured at a non-invariant 4x time scale and no longer apply.
 
+After the Allee-trap fix (2026-10-10; sexual, seeds 11-40, 600 sim-s, run as two halves of 15 seeds; the table above is from before the fix): populations are larger, Plenty 26, Default 20-21, Scarce 0.5 s 19-22, hawks rows 17-23. Extinctions: 0 of 90 food runs, 1 of 90 hawk runs (Grass). Births per run are about 180 by mating and 0-1 by selfing (before: about 130 and 10). The trends keep their direction: speed `S` z +0.9 to +1.4 at Plenty and -0.9 to -1.4 at Scarce, metabolism `M` z +1.5 to +1.6 at Plenty (Scarce now about neutral, -0.1 to -0.3), and camouflage as strong as before (Grass `Cg` z +3.2 to +4.0, Rock `Cg` z -5.2 to -7.6, so `Cy` rises). These z values are over 15 seeds each, so they are not directly comparable to the 10-seed table.
+
 What to teach with it:
 1. Speed is a trade-off that depends on food: fast `S` rises at Plenty, slow `s` rises at Scarce, and the Default food keeps both (polymorphic). Fast lizards win the race for food but pay upkeep every second.
 2. Color flips with the environment (hawks plus the ground color); the default hawk risk of 0.02 makes it clear (z +2 to +10).
 3. Metabolism also follows food now, weakly (Plenty favours `M`, Scarce leans `m`); the effect is smaller than for speed, so use speed as the headline lesson.
 4. Cannibals (`K` rises) and fast growth (`g` leans ahead) are never favored; they teach that not every trait pays.
 5. The Space slider is the carrying capacity. It is optional (the default is no limit); capping it mainly changes the population size.
-6. Populations are small (about 15) and drift is large; compare several runs or seeds before concluding, and use Asexual mode for cleaner trends.
+6. Populations are small (about 20) and drift is large; compare several runs or seeds before concluding, and use Asexual mode for cleaner trends.
 
 ### 🔄 Next Steps (Phase 2)
 - Camera controls for observation (pan/zoom)

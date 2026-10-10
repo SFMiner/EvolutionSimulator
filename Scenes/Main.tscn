@@ -64,6 +64,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Pause"
 
+[node name="SpeedButton" type="Button" parent="UI/ControlPanel/VBoxContainer/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Simulation speed (press to change)"
+text = "1x"
+
 [node name="ModeOption" type="OptionButton" parent="UI/ControlPanel/VBoxContainer"]
 layout_mode = 2
 

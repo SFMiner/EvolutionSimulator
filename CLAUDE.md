@@ -27,6 +27,11 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   ../Godot_v4.5-stable_win64.exe --path .` runs at 4x (via `set_sim_speed`), saves the viewport, quits.
 - Checks: `--headless --path . --editor --quit-after 250` and `--headless --path . --quit-after 600`
   must print no errors/warnings (baseline was clean).
+- **Keyboard / sims site:** the Tab order is the list in `SimulationManager._setup_keyboard()`. Adding,
+  removing or reordering a control means updating that list and `EXPECTED_STOPS` in `tests/test_keyboard.gd`.
+  Web export: preset "Web" writes `..\exports\evolution-simulator\` (the sims site's import folder) with the
+  2D + GUI lean template; replacing the OptionButtons with cycling Buttons would allow the smaller 2D one.
+  The renderer is GL Compatibility (`project.godot`), needed for web.
 - Conventions: tabs; full type hints in new code (legacy files are untyped, leave them); no `:=` on untyped
   values; legacy scripts are CRLF, new files LF.
 

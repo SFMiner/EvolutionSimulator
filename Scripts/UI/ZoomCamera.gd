@@ -161,6 +161,6 @@ func _update_hint() -> void:
 	if _hint == null:
 		return
 	if zoom.x <= ZOOM_MIN + 0.001:
-		_hint.text = "Scroll to zoom in"
+		_hint.text = "Scroll or + to zoom  ·  click a lizard or press N to inspect  ·  Space pauses  ·  Tab: controls"
 	else:
 		_hint.text = "Zoom %.1fx  ·  right-drag or arrows to move  ·  0 to reset" % zoom.x

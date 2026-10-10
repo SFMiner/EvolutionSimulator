@@ -1,6 +1,6 @@
 extends PanelContainer
 ## Click a lizard to see its genes, traits, energy and state in a small box next to it.
-## Click empty ground to close it. Lives in the (always-processing) UI layer so it works while paused.
+## Click empty ground (or press Escape) to close it; N picks the next lizard from the keyboard. Lives in the (always-processing) UI layer so it works while paused.
 
 const PICK_RADIUS_MIN: float = 16.0
 const PICK_RADIUS_PER_SCALE: float = 26.0
@@ -55,6 +55,21 @@ func select(org: Organism) -> void:
 		return
 	visible = true
 	refresh()
+
+
+## Keyboard route (N): the next hatched lizard after the selected one, wrapping round. Eggs are skipped.
+func select_next() -> void:
+	if organism_container == null:
+		return
+	var hatched: Array[Organism] = []
+	for node: Node in organism_container.get_children():
+		var org: Organism = node as Organism
+		if org != null and not org.is_queued_for_deletion() and org.current_state != "egg":
+			hatched.append(org)
+	if hatched.is_empty():
+		select(null)
+		return
+	select(hatched[(hatched.find(_target) + 1) % hatched.size()])
 
 
 func selected() -> Organism:

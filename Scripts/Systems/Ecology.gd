@@ -123,6 +123,23 @@ static func habitat_color(habitat: int) -> Color:
 	return HABITAT_COLORS.get(habitat, Color(0.2, 0.3, 0.2)) as Color
 
 
+## Body fill of the lizard frames in Assets/Lizard_spritesheet.png (one flat colour plus a few detail pixels).
+## (Not Color8(): it is deprecated, and the lean web templates leave deprecated functions out.)
+const SPRITE_BODY_COLOR: Color = Color(153.0 / 255.0, 229.0 / 255.0, 80.0 / 255.0)
+## A lizard is drawn in the colour of the ground it blends into, this much lighter (0 = invisible on it,
+## 1 = white). 0.15 keeps a matched lizard findable; Sean chose it from a mock-up (2026-10-10).
+const LIZARD_LIGHTEN: float = 0.15
+
+## Sprite modulate that turns the lime body fill into this colour gene's ground colour, LIZARD_LIGHTEN lighter.
+## Modulate multiplies, so it is target / base per channel (above 1 in the blue channel is fine).
+static func lizard_tint(color: String) -> Color:
+	var target: Color = Color.WHITE
+	for habitat: int in CAMOUFLAGE_COLOR.keys():
+		if CAMOUFLAGE_COLOR[habitat] == color:
+			target = habitat_color(habitat).lerp(Color.WHITE, LIZARD_LIGHTEN)
+	return Color(target.r / SPRITE_BODY_COLOR.r, target.g / SPRITE_BODY_COLOR.g, target.b / SPRITE_BODY_COLOR.b)
+
+
 static func habitat_name(habitat: int) -> String:
 	return str(HABITAT_NAMES.get(habitat, "Grass"))
 

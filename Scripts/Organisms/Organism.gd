@@ -212,17 +212,12 @@ func _shapes_overlap(a: Node2D, b: Node2D) -> bool:
 	return d <= (_approx_collision_radius(a) + _approx_collision_radius(b))
 
 func apply_genome_effects():
-	# Apply color tint
-	var color_tint = Color.WHITE
-	match genome.color:
-		"green":
-			color_tint = Color(0.5, 1.0, 0.5)
-		"brown":
-			color_tint = Color(0.6, 0.4, 0.2)
-		"gray":
-			color_tint = Color(0.7, 0.7, 0.7)
-	
-	sprite.modulate = color_tint
+	# Drawn in the colour of the ground this colour gene blends into (a little lighter), so camouflage shows.
+	# Eggs stay white: the tint is fitted to the lime body and turns the white egg frame pink or blue.
+	if current_state == "egg":
+		sprite.modulate = Color.WHITE
+	else:
+		sprite.modulate = Ecology.lizard_tint(str(genome.color))
 
 func _to_level_letter(value: String) -> String:
 	match value:
@@ -394,7 +389,8 @@ func update_sprite():
 			scale = Vector2(0.2, 0.2)  # Small eggs
 			animation_player.play("egg")
 		"juvenile":
-			sprite.modulate = Color.YELLOW
+			# Genetic colour from hatching (hawks judge camouflage by it at every stage); size shows age
+			apply_genome_effects()
 			# Gradual scaling from 0.2 to 1.0 based on growth progress
 			var juvenile_scale = 0.2 + (growth_progress * 0.8)  # 0.2 to 1.0
 			scale = Vector2(juvenile_scale, juvenile_scale)

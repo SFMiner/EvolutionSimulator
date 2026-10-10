@@ -3,6 +3,7 @@ extends Node2D
 var environment: Node2D
 @onready var spawn_button: Button = $UI/ControlPanel/VBoxContainer/ButtonRow/SpawnButton
 @onready var pause_button: Button = $UI/ControlPanel/VBoxContainer/ButtonRow/PauseButton
+@onready var speed_button: Button = $UI/ControlPanel/VBoxContainer/ButtonRow/SpeedButton
 @onready var population_label: Label = $UI/ControlPanel/VBoxContainer/PopulationLabel
 @onready var generation_label: Label = $UI/ControlPanel/VBoxContainer/GenerationLabel
 @onready var mode_option: OptionButton = $UI/ControlPanel/VBoxContainer/ModeOption
@@ -42,6 +43,10 @@ var extinct_at: float = -1.0
 var deaths: Dictionary = {"starved": 0, "eaten": 0, "hawk": 0, "old_age": 0}
 
 const HAWK_STRIKE: GDScript = preload("res://Scripts/Environment/HawkStrike.gd")
+## Speeds the Speed button cycles through (GameConfig.set_sim_speed keeps the biology the same at each).
+const SPEEDS: Array[float] = [1.0, 2.0, 4.0]
+var speed_index: int = 0
+var keyboard: KeyboardNav = null
 
 # Screenshot gate (EVO_SHOT=<png>, optional EVO_MODE, EVO_SECONDS, EVO_SEED)
 var _shot_path: String = ""
@@ -56,8 +61,10 @@ func _ready():
 	# Connect button signals
 	spawn_button.pressed.connect(_on_spawn_button_pressed)
 	pause_button.pressed.connect(_on_pause_button_pressed)
+	speed_button.pressed.connect(_on_speed_button_pressed)
 	_setup_genetics_controls()
 	_setup_environment_controls()
+	_setup_keyboard()
 
 	# Defer the initialization to ensure all nodes are ready
 	call_deferred("_initialize_simulation")
@@ -152,6 +159,20 @@ func _on_pause_button_pressed():
 		pause_button.text = "Resume"
 	else:
 		pause_button.text = "Pause"
+
+func _on_speed_button_pressed() -> void:
+	speed_index = (speed_index + 1) % SPEEDS.size()
+	GameConfig.set_sim_speed(SPEEDS[speed_index])
+	speed_button.text = "%dx" % int(SPEEDS[speed_index])
+
+## Tab order follows the right-hand panel top to bottom, then the gene picker on the left.
+func _setup_keyboard() -> void:
+	keyboard = KeyboardNav.new()
+	keyboard.name = "KeyboardNav"
+	$UI.add_child(keyboard)
+	var controls: Array[Control] = [spawn_button, pause_button, speed_button, mode_option, mutation_slider,
+			food_slider, space_slider, habitat_option, hawks_check, labels_check, allele_graph.locus_option()]
+	keyboard.setup(controls, inspector, pause_button)
 
 func _on_organism_died(organism: Organism):
 	population_count -= 1

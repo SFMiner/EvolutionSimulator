@@ -37,6 +37,7 @@ func _run() -> void:
 	_test_space_cap()
 	_test_satiety()
 	_test_bugs()
+	_test_lizard_tint()
 	print("Test Results: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -193,3 +194,21 @@ func _test_labels() -> void:
 		"color": ["Cy", "Cb"], "cannibal": ["k", "K"],
 	}
 	_check(EvoGenetics.genotype_label(genotype) == "Mm Ss gg CbCy Kk", "genotype label: " + EvoGenetics.genotype_label(genotype))
+
+
+## Each colour gene is drawn as its own ground's colour, 15% lighter: close to that ground, far from the others.
+func _test_lizard_tint() -> void:
+	var base: Color = Ecology.SPRITE_BODY_COLOR
+	for habitat: int in [Ecology.Habitat.GRASS, Ecology.Habitat.SAND, Ecology.Habitat.ROCK]:
+		var gene: String = Ecology.camouflage_color(habitat)
+		var t: Color = Ecology.lizard_tint(gene)
+		var drawn: Color = Color(base.r * t.r, base.g * t.g, base.b * t.b)
+		var want: Color = Ecology.habitat_color(habitat).lerp(Color.WHITE, Ecology.LIZARD_LIGHTEN)
+		_check(_near(drawn.r, want.r) and _near(drawn.g, want.g) and _near(drawn.b, want.b), "%s lizard body is the %s colour, lightened" % [gene, Ecology.habitat_name(habitat)])
+		for other: int in [Ecology.Habitat.GRASS, Ecology.Habitat.SAND, Ecology.Habitat.ROCK]:
+			if other != habitat:
+				var g: Color = Ecology.habitat_color(other)
+				var own: Color = Ecology.habitat_color(habitat)
+				var d_other: float = Vector3(drawn.r - g.r, drawn.g - g.g, drawn.b - g.b).length()
+				var d_own: float = Vector3(drawn.r - own.r, drawn.g - own.g, drawn.b - own.b).length()
+				_check(d_own < d_other, "%s lizard is closer to %s than to %s" % [gene, Ecology.habitat_name(habitat), Ecology.habitat_name(other)])
