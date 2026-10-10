@@ -92,9 +92,18 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   sprite + collision (root `scale` is game logic: drain, sensing, cannibal size rule). Measured 2026-10-09 (10 seeds x 600 s):
   beetle speed 15 erased the Scarce speed trend (fast lizards catch beetles); 10 keeps speed and metabolism flips, populations
   Default 17 / Plenty 22 / hawks 14-18. 30-seed recheck (seeds 11-40, 10 px/s): food rows 0 of 90 extinct, but HAWK rows 9 of 90
-  (Grass 5, Sand 1, Rock 3; baseline before beetles + shrink was 1 of 30, shrink-only 4 of 30). Speed z per 15 seeds: Scarce
-  -1.5/-1.4, Plenty +0.7/+1.6. Open issue: hawk-row extinctions.
+  (Grass 5, Sand 1, Rock 3). NOT a regression: the old game (body 1, no beetles) on the same seeds is 10 of 90, shrink-only 8,
+  full-size + beetles 4. Hawk rows went ~10% extinct all along; the "1 of 30" baseline was lucky seeds 1-10. Extinct runs crash
+  in the first minute (24 founders -> 4-12; exposed lizards last ~50 s at risk 0.02; Grass worst, green is the rarest founder
+  color), then fade. Speed z per 15 seeds: Scarce -1.5/-1.4, Plenty +0.7/+1.6.
+- Hawk extinctions are an ALLEE TRAP, not hawk strength (2026-10-10; `EXP_TRACE=1` now prints a 20 s census of extinct runs:
+  stages, ready adults, camouflaged, births and deaths by cause). The 24 founders hatch together and many starve in the first
+  minute; hawks add a few deaths, pushing the population to 3-8 adults. Then 2-4 adults sit "ready" for minutes with almost no
+  births: mating needs a partner within mate_radius 90 px of the 800x600 arena, and selfing needs 20 s of UNBROKEN readiness
+  (`_mate_wait` resets whenever energy dips below reproduction_energy). Hawk risk 0.012-0.02 and a 60 s ramp
+  (`hawk_ramp_seconds`, kept for play) all gave 5-9 of 90. Untested fixes: ready adults seek each other; do not reset the
+  selfing wait on a dip; stagger the founder hatch.
 - Hawk default risk is 0.02 (was 0.006: color selection was weak). Color z: Grass +2.3, Sand +4.3, Rock +9.9; one Sand extinction in 10.
 - Drift at N of 20-30 is large (sd 0.2-0.3 across seeds), so a trait must move the mean by 0.4-0.6 to count as 2 sd.
-- Extinction at the invariant scale and final values: 0 of 10 in every sexual row (Default, Plenty, Scarce 0.5 s, hawks Grass/Rock) except
-  hawks on Sand (1 of 10); 0 of 5 asexual. The 1-4 of 10 extinctions seen before 2026-10-08 were an artifact of the non-invariant 4x.
+- Extinction at the invariant scale: food rows (no hawks) ~0 (0 of 90, seeds 11-40); hawk rows started from founders ~10% (see
+  beetles bullet). Judge extinction rates on 30+ seeds: 10 seeds gave 1 of 30 hawk runs where the true rate is ~10%.

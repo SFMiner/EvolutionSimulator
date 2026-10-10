@@ -139,9 +139,11 @@ func _test_energy_hawks_tags() -> void:
 	racer.organism_died.connect(func(o: Node) -> void: died.append(o))
 	_config.hawks_on = true
 	_config.hawk_risk = 1.0
+	_config.hawk_presence = 1.0  # hawks fully arrived (the ramp is tested in test_ecology)
 	racer.energy = 90.0
 	racer._on_energy_timer_timeout()
 	_check(died.size() == 1 and racer.death_cause == "hawk", "a hawk strike kills with cause hawk")
+	_config.hawk_presence = 0.0
 	_config.hawks_on = false
 	_config.hawk_risk = saved_risk
 	_config.reproduction_mode = 0

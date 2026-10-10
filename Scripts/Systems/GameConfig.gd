@@ -42,6 +42,11 @@ var hawks_on: bool = false
 ## Chance per second that a hawk catches a lizard; multiplied by the factor when camouflaged.
 var hawk_risk: float = 0.02
 var hawk_camouflage_factor: float = 0.05
+## Hawks arrive gradually: after they are switched on, the risk rises linearly from 0 to full over this many simulated
+## seconds (0 = at once). Without it, hawks on from the start crashed ~10% of runs in the first minute (most founders
+## are not camouflaged). hawk_presence (0..1) is advanced by SimulationManager and reset when hawks go off.
+var hawk_ramp_seconds: float = 60.0
+var hawk_presence: float = 0.0
 ## Metabolism pays: insect meal energy is multiplied by this (applies to adult and juvenile meals).
 ## Invariant (tested): break-even intake drain / (multiplier x meal) is ordered low < medium < high.
 var meal_multiplier_by_metabolism: Dictionary = {"low": 0.7, "medium": 1.0, "high": 1.4}

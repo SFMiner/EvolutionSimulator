@@ -50,6 +50,7 @@ var _shot_pending: bool = false
 var _inspect_in_shot: bool = false  # EVO_INSPECT=1: select an adult before the screenshot
 
 func _ready():
+	GameConfig.hawk_presence = 0.0  # a new simulation's hawks arrive from scratch
 	_read_env_settings()
 	
 	# Connect button signals
@@ -65,6 +66,10 @@ func _process(delta):
 	if !is_paused:
 		simulation_time += delta
 		data_update_timer += delta
+		GameConfig.hawk_presence = Ecology.hawk_presence_step(GameConfig, GameConfig.hawk_presence, delta)
+		var hawk_text: String = "Hawks (arriving)" if GameConfig.hawks_on and GameConfig.hawk_presence < 1.0 else "Hawks"
+		if hawks_check.text != hawk_text:
+			hawks_check.text = hawk_text
 		
 		# Update data for graphs every second
 		if data_update_timer >= data_update_interval:

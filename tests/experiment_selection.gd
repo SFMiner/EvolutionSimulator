@@ -8,7 +8,7 @@ extends SceneTree
 ## Settings via environment variables (all optional):
 ##   EXP_SEEDS=1,2,3,4,5   EXP_SECONDS=600   EXP_MODES=sexual,asexual   EXP_SCALE=8 (GameConfig.set_sim_speed; 1, 4 and 8 measured equivalent)
 ##   EXP_FOOD_INTERVAL=<s> EXP_FOOD_MAX=<n>  EXP_FOUNDERS=<n>   (override GameConfig for a variant)
-##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  (environment controls)
+##   EXP_HABITAT=grass|sand|rock  EXP_HAWKS=1  EXP_HAWK_RISK=<per s>  EXP_HAWK_RAMP=<s, 0 = at once>  (environment controls)
 ##   EXP_CANNIBAL_EFF=<x> EXP_UPKEEP=slow,med,fast EXP_MEALMULT=low,med,high  (trade-off tuning overrides)
 ##   EXP_EGG_COST=<energy> (parent pays it, hatchling starts with it)
 ##   EXP_BUGS=0|1 (bugs_enabled)  EXP_BUG_ENERGY=<energy>  EXP_BUG_RATIO=<x food interval per bug>  EXP_BUG_MAX=<n>
@@ -65,6 +65,8 @@ func _run() -> void:
 		_config.hawks_on = OS.get_environment("EXP_HAWKS") == "1"
 	if OS.get_environment("EXP_HAWK_RISK").is_valid_float():
 		_config.hawk_risk = OS.get_environment("EXP_HAWK_RISK").to_float()
+	if OS.get_environment("EXP_HAWK_RAMP").is_valid_float():
+		_config.hawk_ramp_seconds = OS.get_environment("EXP_HAWK_RAMP").to_float()
 	if OS.get_environment("EXP_FOOD_INITIAL").is_valid_int():
 		_config.food_initial = OS.get_environment("EXP_FOOD_INITIAL").to_int()
 	if OS.get_environment("EXP_FOOD_ENERGY").is_valid_float():
@@ -146,9 +148,46 @@ func _run() -> void:
 					for i: int in range(0, series.size(), 20):
 						trace.append(str(series[i]))
 					_emit("EXP trace (extinct run, population every 20 s): " + " ".join(trace))
+					_emit_snapshots(r["snaps"])
 		_report(mode_name, results)
 	_config.set_sim_speed(1.0)
 	quit(0)
+
+
+## Life-stage census and cumulative births/deaths, taken every 20 s for the extinction trace.
+func _snapshot(main: Node) -> Dictionary:
+	var counts: Dictionary = {"egg": 0, "juvenile": 0, "adult": 0, "ready": 0, "camo": 0}
+	for node: Node in main.organism_container.get_children():
+		if node.is_queued_for_deletion():
+			continue
+		var stage: String = str(node.get("current_state"))
+		counts[stage] = int(counts.get(stage, 0)) + 1
+		if stage == "adult" and float(node.get("energy")) >= float(_config.reproduction_energy):
+			counts["ready"] = int(counts["ready"]) + 1
+		var genome: Dictionary = node.get("genome")
+		if stage != "egg" and Ecology.is_camouflaged(str(genome.get("color", "")), int(_config.habitat)):
+			counts["camo"] = int(counts["camo"]) + 1
+	counts["births"] = (main.births as Dictionary).duplicate()
+	counts["deaths"] = (main.deaths as Dictionary).duplicate()
+	return counts
+
+
+## One line per 20 s: eggs/juveniles/adults (ready to breed), camouflaged hatched lizards, then births and deaths since the last line.
+func _emit_snapshots(snaps: Array) -> void:
+	var prev_b: Dictionary = {}
+	var prev_d: Dictionary = {}
+	for i: int in range(snaps.size()):
+		var s: Dictionary = snaps[i]
+		var b: Dictionary = s["births"]
+		var d: Dictionary = s["deaths"]
+		var line: String = "EXP   t=%3d e%d j%d a%d(ready %d) camo %d | born m%d s%d | died starve %d eaten %d hawk %d old %d" % [
+				i * 20, int(s["egg"]), int(s["juvenile"]), int(s["adult"]), int(s["ready"]), int(s["camo"]),
+				int(b.get("mating", 0)) - int(prev_b.get("mating", 0)), int(b.get("self", 0)) - int(prev_b.get("self", 0)),
+				int(d.get("starved", 0)) - int(prev_d.get("starved", 0)), int(d.get("eaten", 0)) - int(prev_d.get("eaten", 0)),
+				int(d.get("hawk", 0)) - int(prev_d.get("hawk", 0)), int(d.get("old_age", 0)) - int(prev_d.get("old_age", 0))]
+		_emit(line)
+		prev_b = b
+		prev_d = d
 
 
 ## One seeded run. Returns frequencies at start and each checkpoint plus population stats.
@@ -168,6 +207,7 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 	var next_cp: int = 0
 	var pops: Array[int] = []
 	var foods: Array[int] = []
+	var snaps: Array[Dictionary] = []  # every 20 s, for EXP_TRACE (see _snapshot)
 	var next_second: float = 1.0
 	var extinct_at: float = -1.0
 	var max_drift: int = 0
@@ -183,6 +223,8 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 				meals_at_half = int(_config.diag["insect_meals"])
 				bug_meals_at_half = int(_config.diag["bug_meals"])
 			foods.append(main.environment.get_node("FoodContainer").get_child_count())
+			if pops.size() % 20 == 1:
+				snaps.append(_snapshot(main))
 			max_drift = maxi(max_drift, absi(int(main.population_count) - pops[pops.size() - 1]))
 			next_second += 1.0
 		if t >= CHECKPOINTS[next_cp] * _seconds:
@@ -229,6 +271,7 @@ func _run_one(mode_name: String, seed_value: int) -> Dictionary:
 		"digest": _digest(main, live),
 		"wall": float(Time.get_ticks_msec() - started_ms) / 1000.0,
 		"pops": pops,
+		"snaps": snaps,
 		"food_mean2": _mean_int_tail(foods),
 	}
 	main.queue_free()

@@ -85,11 +85,26 @@ func _test_hawk_risk() -> void:
 	_check(_near(Ecology.hawk_risk(_cfg, false), 0.0), "no risk with hawks off")
 	_check(_near(Ecology.hawk_risk(_cfg, true), 0.0), "no risk with hawks off (camouflaged)")
 	_cfg.hawks_on = true
+	var saved_presence: float = float(_cfg.hawk_presence)
+	_cfg.hawk_presence = 1.0
 	var open: float = Ecology.hawk_risk(_cfg, false)
 	var hidden: float = Ecology.hawk_risk(_cfg, true)
 	_check(_near(open, float(_cfg.hawk_risk)), "exposed lizard faces the full hawk risk")
 	_check(_near(hidden, open * float(_cfg.hawk_camouflage_factor)), "camouflage scales the risk")
 	_check(hidden < open, "camouflaged lizards are safer")
+	# Hawks arrive gradually: no risk at first, half way at half the ramp, full after it
+	var ramp: float = float(_cfg.hawk_ramp_seconds)
+	_check(ramp > 0.0, "hawks ramp in by default")
+	_cfg.hawk_presence = 0.0
+	_check(_near(Ecology.hawk_risk(_cfg, false), 0.0), "no hawk risk the moment hawks are switched on")
+	var p: float = Ecology.hawk_presence_step(_cfg, 0.0, ramp * 0.5)
+	_check(_near(p, 0.5), "presence is half way after half the ramp")
+	_cfg.hawk_presence = p
+	_check(_near(Ecology.hawk_risk(_cfg, false), open * 0.5), "half presence = half risk")
+	_check(_near(Ecology.hawk_presence_step(_cfg, p, ramp), 1.0), "presence caps at 1")
+	_cfg.hawks_on = false
+	_check(_near(Ecology.hawk_presence_step(_cfg, 0.7, 1.0), 0.0), "hawks off resets presence")
+	_cfg.hawk_presence = saved_presence
 	_cfg.hawks_on = saved_on
 
 

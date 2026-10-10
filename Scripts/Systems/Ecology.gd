@@ -97,14 +97,26 @@ static func is_camouflaged(color: String, habitat: int) -> bool:
 	return color == camouflage_color(habitat)
 
 
-## Chance per second that a hawk catches one lizard (0 when hawks are off).
+## Chance per second that a hawk catches one lizard (0 when hawks are off), scaled by how far the hawks have arrived.
 static func hawk_risk(cfg: Node, camouflaged: bool) -> float:
 	if not bool(cfg.hawks_on):
 		return 0.0
 	var risk: float = float(cfg.hawk_risk)
+	if float(cfg.hawk_ramp_seconds) > 0.0:
+		risk *= clampf(float(cfg.hawk_presence), 0.0, 1.0)
 	if camouflaged:
 		risk *= float(cfg.hawk_camouflage_factor)
 	return risk
+
+
+## Hawk presence after `delta` simulated seconds: rises to 1 over hawk_ramp_seconds while hawks are on, 0 when off.
+static func hawk_presence_step(cfg: Node, presence: float, delta: float) -> float:
+	if not bool(cfg.hawks_on):
+		return 0.0
+	var ramp: float = float(cfg.hawk_ramp_seconds)
+	if ramp <= 0.0:
+		return 1.0
+	return minf(presence + delta / ramp, 1.0)
 
 
 static func habitat_color(habitat: int) -> Color:
