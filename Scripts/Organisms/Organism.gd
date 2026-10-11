@@ -53,6 +53,7 @@ var reproduction_energy = GameConfig.reproduction_energy
 var reproduction_cost: float = GameConfig.egg_cost  # Energy cost to reproduce (egg)
 var max_energy = GameConfig.max_energy
 var food_energy_value = GameConfig.food_energy_value
+var _blink_tween: Tween = null
 
 func _ready():
 	if DEBUG:
@@ -380,6 +381,17 @@ func stop_movement_animation():
 	if current_state != "egg":
 		animation_player.stop()
 
+## A short yellow blink when the lizard eats. It ends by re-applying the genetic colour: restoring the colour
+## saved at the start left a lizard that ate twice within 0.2 s yellow for good (it saved the first blink's yellow).
+## The tween is owned by this node, so it dies with it (an awaited SceneTreeTimer segfaulted Godot at quit).
+func _eat_blink() -> void:
+	sprite.modulate = Color.YELLOW
+	if _blink_tween != null:
+		_blink_tween.kill()
+	_blink_tween = create_tween()
+	_blink_tween.tween_interval(0.2)
+	_blink_tween.tween_callback(apply_genome_effects)
+
 func update_sprite():
 	# Update sprite based on current state
 	# Scale and color based on growth stage
@@ -424,11 +436,7 @@ func _on_food_detected(body: Node2D):
 		energy = min(energy + Ecology.bug_meal(GameConfig, str(genome.metabolism)), max_energy)
 		GameConfig.diag["bug_meals"] = int(GameConfig.diag["bug_meals"]) + 1
 		ai.clear_food_target()
-		var bug_original_color: Color = sprite.modulate
-		sprite.modulate = Color.YELLOW
-		var bug_flash: Tween = create_tween()
-		bug_flash.tween_interval(0.2)
-		bug_flash.tween_callback(func() -> void: sprite.modulate = bug_original_color)
+		_eat_blink()
 		return
 
 	if body.has_method("consume") and current_state != "egg" and not is_full():
@@ -524,13 +532,7 @@ func _on_food_detected(body: Node2D):
 		if ai.has_method("clear_food_target"):
 			ai.clear_food_target()
 
-		# Visual feedback - briefly change color. A tween owned by this node dies with it; an awaited
-		# SceneTreeTimer resumed on freed organisms and segfaulted Godot at quit.
-		var original_color = sprite.modulate
-		sprite.modulate = Color.YELLOW
-		var flash: Tween = create_tween()
-		flash.tween_interval(0.2)
-		flash.tween_callback(func() -> void: sprite.modulate = original_color)
+		_eat_blink()
 		# Stop here to avoid using a freed body reference
 		return
 

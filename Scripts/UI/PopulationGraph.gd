@@ -23,6 +23,9 @@ func _ready():
 	call_deferred("_align_to_control_panel")
 
 func _align_to_control_panel():
+	# ResponsiveLayout stacks it under the panel in a container, which places it
+	if get_parent() is Container:
+		return
 	var panel = get_parent().get_node("ControlPanel")
 	if panel != null and panel is Control:
 		var ctrl := panel as Control

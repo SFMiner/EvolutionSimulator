@@ -24,7 +24,7 @@ GameConfig="*res://Scripts/Systems/GameConfig.gd"
 window/size/viewport_width=1200
 window/size/viewport_height=648
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
 
 [rendering]
 

@@ -9,11 +9,18 @@ const ZOOM_MAX: float = 5.0
 const ZOOM_STEP: float = 1.25
 ## Arena half-size in world px (EnvironmentManager spawns in 800 x 600 around the origin).
 const ARENA_HALF: Vector2 = Vector2(400.0, 300.0)
-## Screen rect of the arena between the two side panels (window 1200 x 648, panels 200 px).
+## Screen rect of the arena at the base size (1200 x 648, panels 200 px). ResponsiveLayout moves and resizes it
+## for small frames through set_arena_screen().
 const ARENA_SCREEN: Rect2 = Rect2(200.0, 24.0, 800.0, 600.0)
 ## Arrow-key pan speed in screen px per second.
 const KEY_PAN_SPEED: float = 400.0
 
+## Where the arena is drawn now (base px), and the camera zoom that fits it there (1 at the base size).
+## zoom_level() is relative to that fit: 1 shows the whole arena.
+var arena_screen: Rect2 = ARENA_SCREEN
+var _fit_zoom: float = 1.0
+var _view: Vector2 = Vector2(1200.0, 648.0)
+var _strips: Array[ColorRect] = []
 var _dragging: bool = false
 var _hint: Label = null
 
@@ -27,8 +34,9 @@ func _ready() -> void:
 		_hint.add_theme_font_size_override("font_size", 12)
 		_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
 		_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hint.position = ARENA_SCREEN.position + Vector2(6.0, ARENA_SCREEN.size.y - 20.0)
+		_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		ui.add_child(_hint)
+	set_arena_screen(ARENA_SCREEN, get_viewport_rect().size)
 	var env_zoom: String = OS.get_environment("EVO_ZOOM")  # screenshot gate: start zoomed in at the centre
 	if env_zoom.is_valid_float():
 		set_zoom_level(env_zoom.to_float())
@@ -38,23 +46,43 @@ func _ready() -> void:
 ## Opaque strips around the arena, drawn under the panels: zoomed in, the world would otherwise show
 ## behind the (partly transparent) side panels and above and below the arena.
 func _add_frame(ui: Node) -> void:
-	var view: Vector2 = get_viewport_rect().size
 	var color: Color = RenderingServer.get_default_clear_color()
-	var a: Rect2 = ARENA_SCREEN
-	var strips: Array[Rect2] = [
-		Rect2(0.0, 0.0, a.position.x, view.y),  # left
-		Rect2(a.end.x, 0.0, view.x - a.end.x, view.y),  # right
-		Rect2(a.position.x, 0.0, a.size.x, a.position.y),  # top
-		Rect2(a.position.x, a.end.y, a.size.x, view.y - a.end.y),  # bottom
-	]
-	for strip: Rect2 in strips:
+	for i: int in range(4):
 		var rect: ColorRect = ColorRect.new()
 		rect.color = color
-		rect.position = strip.position
-		rect.size = strip.size
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ui.add_child(rect)
 		ui.move_child(rect, 0)
+		_strips.append(rect)
+
+
+## Draw the arena in `rect` (base px) of a `view`-sized screen: fits the zoom, the frame strips and the hint.
+## Keeps the current zoom level and view centre.
+func set_arena_screen(rect: Rect2, view: Vector2) -> void:
+	var level: float = zoom_level()
+	arena_screen = rect
+	_view = view
+	_fit_zoom = rect.size.x / (ARENA_HALF.x * 2.0)
+	if _strips.size() == 4:
+		var a: Rect2 = rect
+		var strips: Array[Rect2] = [
+			Rect2(0.0, 0.0, a.position.x, view.y),  # left
+			Rect2(a.end.x, 0.0, view.x - a.end.x, view.y),  # right
+			Rect2(a.position.x, 0.0, a.size.x, a.position.y),  # top
+			Rect2(a.position.x, a.end.y, a.size.x, view.y - a.end.y),  # bottom
+		]
+		for i: int in range(4):
+			_strips[i].position = strips[i].position
+			_strips[i].size = strips[i].size
+	_set_level(level)
+	_update_hint()
+
+
+## Camera zoom for `level`, and the offset that puts the camera centre in the middle of the arena rect
+## (not the middle of the screen). The offset is in world px, so it changes with the zoom.
+func _set_level(level: float) -> void:
+	zoom = Vector2.ONE * level * _fit_zoom
+	offset = (_view * 0.5 - arena_screen.get_center()) / zoom.x
 
 
 ## Camera centre that keeps a view at `level` inside the arena.
@@ -73,22 +101,22 @@ static func zoom_about(center: Vector2, old_level: float, new_level: float, scre
 
 
 func zoom_level() -> float:
-	return zoom.x
+	return zoom.x / _fit_zoom
 
 
 func set_zoom_level(level: float, screen_point: Vector2 = Vector2(-1.0, -1.0)) -> void:
-	var old_level: float = zoom.x
+	var old_level: float = zoom_level()
 	var new_level: float = clampf(level, ZOOM_MIN, ZOOM_MAX)
-	var offset: Vector2 = Vector2.ZERO
+	var from_center: Vector2 = Vector2.ZERO
 	if screen_point.x >= 0.0:
-		offset = screen_point - get_viewport_rect().size * 0.5
-	position = clamp_center(zoom_about(position, old_level, new_level, offset), new_level)
-	zoom = Vector2(new_level, new_level)
+		from_center = (screen_point - arena_screen.get_center()) / _fit_zoom
+	position = clamp_center(zoom_about(position, old_level, new_level, from_center), new_level)
+	_set_level(new_level)
 	_update_hint()
 
 
 func reset_view() -> void:
-	zoom = Vector2.ONE
+	_set_level(1.0)
 	position = Vector2.ZERO
 	_update_hint()
 
@@ -96,36 +124,36 @@ func reset_view() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	var button: InputEventMouseButton = event as InputEventMouseButton
 	if button != null:
-		if button.pressed and ARENA_SCREEN.has_point(button.position):
+		if button.pressed and arena_screen.has_point(button.position):
 			if button.button_index == MOUSE_BUTTON_WHEEL_UP:
-				set_zoom_level(zoom.x * ZOOM_STEP, button.position)
+				set_zoom_level(zoom_level() * ZOOM_STEP, button.position)
 				get_viewport().set_input_as_handled()
 			elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				set_zoom_level(zoom.x / ZOOM_STEP, button.position)
+				set_zoom_level(zoom_level() / ZOOM_STEP, button.position)
 				get_viewport().set_input_as_handled()
 		if button.button_index == MOUSE_BUTTON_RIGHT or button.button_index == MOUSE_BUTTON_MIDDLE:
-			_dragging = button.pressed and ARENA_SCREEN.has_point(button.position)
+			_dragging = button.pressed and arena_screen.has_point(button.position)
 		return
 	var motion: InputEventMouseMotion = event as InputEventMouseMotion
 	if motion != null and _dragging:
-		position = clamp_center(position - motion.relative / zoom.x, zoom.x)
+		position = clamp_center(position - motion.relative / zoom.x, zoom_level())
 		return
 	var pinch: InputEventMagnifyGesture = event as InputEventMagnifyGesture
 	if pinch != null:
-		set_zoom_level(zoom.x * pinch.factor, pinch.position)
+		set_zoom_level(zoom_level() * pinch.factor, pinch.position)
 		return
 	var pan: InputEventPanGesture = event as InputEventPanGesture
 	if pan != null:
-		position = clamp_center(position + pan.delta * 4.0 / zoom.x, zoom.x)
+		position = clamp_center(position + pan.delta * 4.0 / zoom.x, zoom_level())
 		return
 	var key: InputEventKey = event as InputEventKey
 	if key != null and key.pressed:
 		match key.keycode:
 			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD:
-				set_zoom_level(zoom.x * ZOOM_STEP)
+				set_zoom_level(zoom_level() * ZOOM_STEP)
 				get_viewport().set_input_as_handled()
 			KEY_MINUS, KEY_KP_SUBTRACT:
-				set_zoom_level(zoom.x / ZOOM_STEP)
+				set_zoom_level(zoom_level() / ZOOM_STEP)
 				get_viewport().set_input_as_handled()
 			KEY_0, KEY_KP_0:
 				reset_view()
@@ -134,7 +162,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	# Arrow keys pan (only when zoomed; a focused slider gets the arrows first via the GUI)
-	if zoom.x <= ZOOM_MIN:
+	if zoom_level() <= ZOOM_MIN + 0.001:
 		return
 	var dir: Vector2 = Vector2.ZERO
 	if Input.is_key_pressed(KEY_LEFT):
@@ -149,7 +177,7 @@ func _process(delta: float) -> void:
 		return
 	# Real seconds, so panning speed does not change with the simulation speed
 	var real_delta: float = delta / maxf(Engine.time_scale, 0.001)
-	position = clamp_center(position + dir * KEY_PAN_SPEED * real_delta / zoom.x, zoom.x)
+	position = clamp_center(position + dir * KEY_PAN_SPEED * real_delta / zoom.x, zoom_level())
 
 
 func _update_hint() -> void:
@@ -160,7 +188,11 @@ func _update_hint() -> void:
 				node.apply_label_zoom(zoom.x)
 	if _hint == null:
 		return
-	if zoom.x <= ZOOM_MIN + 0.001:
+	if zoom_level() <= ZOOM_MIN + 0.001:
 		_hint.text = "Scroll or + to zoom  ·  click a lizard or press N to inspect  ·  Space pauses  ·  Tab: controls"
 	else:
-		_hint.text = "Zoom %.1fx  ·  right-drag or arrows to move  ·  0 to reset" % zoom.x
+		_hint.text = "Zoom %.1fx  ·  right-drag or arrows to move  ·  0 to reset" % zoom_level()
+	# Bottom left of the arena; wraps upward when the arena is narrow
+	_hint.size = Vector2(arena_screen.size.x - 12.0, 0.0)
+	var text_height: float = float(_hint.get_line_count() * _hint.get_line_height())
+	_hint.position = Vector2(arena_screen.position.x + 6.0, arena_screen.end.y - text_height - 4.0)

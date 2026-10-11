@@ -104,7 +104,9 @@ func refresh() -> void:
 	# Follow the lizard on screen, kept inside the window
 	var on_screen: Vector2 = _target.get_global_transform_with_canvas().origin
 	# Zoomed in, the lizard can scroll out of the arena view: hide the box (keep the selection) until it returns
-	visible = ZoomCamera.ARENA_SCREEN.has_point(on_screen)
+	var cam: ZoomCamera = get_viewport().get_camera_2d() as ZoomCamera
+	var arena: Rect2 = cam.arena_screen if cam != null else ZoomCamera.ARENA_SCREEN
+	visible = arena.has_point(on_screen)
 	var screen: Vector2 = on_screen + BOX_OFFSET
 	var view: Vector2 = get_viewport().get_visible_rect().size
 	var box: Vector2 = get_combined_minimum_size()

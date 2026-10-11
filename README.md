@@ -179,7 +179,8 @@ evolution-simulator/
 - [x] Allele graph lines are named at their right ends (not colour alone)
 - [x] Camouflage you can see (2026-10-10): each colour gene is drawn as its own ground's colour 15% lighter (`Ecology.lizard_tint`), from hatching on; eggs stay white. Before, the tint multiplied the lime sprite, so "gray" lizards were green and none matched its ground
 - [x] Web export: GL Compatibility renderer, no threads, 2D + GUI lean template (OptionButtons), preset "Web" writes to `..\exports\evolution-simulator\` (wasm 24 MB, pck 116 KB)
-- [ ] Small frames: the fixed 1200 x 648 layout scales down, so text is tiny in a 360 px tall frame or on a phone in portrait; full screen in landscape is readable
+- [x] Small frames: text never drops below 85% size (CSS px); the arena shrinks instead and the side panels scroll. A tall frame (phone in portrait) puts the arena on top with the two panels side by side under it. Checked in headless Chromium at 1280 x 360 and 420 x 675
+- [x] Fixed: a lizard that ate twice within 0.2 s stayed yellow for good; the population graph under the controls was hidden behind the arena frame
 - [x] Sims-site import, hidden (2026-10-10, release 20261010T231618): https://sims.mr-miner.com/g/evolution-simulator/index.html
 - [ ] Play-test on the site with a real keyboard, then publish (Sean's call)
 

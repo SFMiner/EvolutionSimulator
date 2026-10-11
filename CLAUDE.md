@@ -67,7 +67,12 @@ Spec: `Docs/Genetics v2 - Diploid + Mating.md`. Feature checklist: `README.md`.
   `EVO_INSPECT=1` (select an adult before the shot) extend the screenshot gate. The Main node reads `EVO_*` after the
   Environment child is ready, so `_setup_environment_controls` re-applies habitat/food to it.
 - The click-to-inspect box is `Scripts/UI/Inspector.gd` (in the always-processing UI layer, so it works while paused).
-- Window is 1200x648 (project.godot display + canvas_items stretch): arena 800 px wide plus two 200 px panels, no overlap.
+- Base window 1200x648, canvas_items stretch, aspect **expand** (with "keep" the root never emits size_changed on a resize,
+  so the web layout froze). `Scripts/UI/ResponsiveLayout.gd` sets `content_scale_size` per window so the UI stays >= 0.85
+  CSS px per base px, moves the allele panel / controls + population graph into two ScrollContainers, and gives the arena
+  rect to `ZoomCamera.set_arena_screen()` (zoom level 1 = arena fits that rect; `position` stays the arena-space centre, the
+  screen shift is `offset`). Use `cam.arena_screen`, not `ZoomCamera.ARENA_SCREEN` (base size only). Tested by `tests/test_layout.gd`.
+  `_setup_layout()` must run before `_setup_keyboard()`: the Tab links are relative NodePaths and break if the panels move after.
 - Debug `print`s are gated by `Organism.DEBUG` / `Food.DEBUG` (false). They cost ~6x on the experiment; do not re-enable in loops.
 - `GameConfig.cannibalism_enabled` (default true; `EXP_CANNIBALS=0` in the experiment) stops all cannibal predation. The
   experiment report now prints insect meals per lizard-second (2nd half), cannibal kills by prey stage and deaths by cause.

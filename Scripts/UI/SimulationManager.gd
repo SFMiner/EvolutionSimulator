@@ -47,6 +47,7 @@ const HAWK_STRIKE: GDScript = preload("res://Scripts/Environment/HawkStrike.gd")
 const SPEEDS: Array[float] = [1.0, 2.0, 4.0]
 var speed_index: int = 0
 var keyboard: KeyboardNav = null
+var layout: ResponsiveLayout = null
 
 # Screenshot gate (EVO_SHOT=<png>, optional EVO_MODE, EVO_SECONDS, EVO_SEED)
 var _shot_path: String = ""
@@ -64,6 +65,8 @@ func _ready():
 	speed_button.pressed.connect(_on_speed_button_pressed)
 	_setup_genetics_controls()
 	_setup_environment_controls()
+	# Layout first: it moves the panels, and the keyboard stores relative paths between the controls
+	_setup_layout()
 	_setup_keyboard()
 
 	# Defer the initialization to ensure all nodes are ready
@@ -96,8 +99,7 @@ func _initialize_simulation():
 	organism_container = environment.get_node("OrganismContainer")
 	inspector.organism_container = organism_container
 
-	# Find the population graph
-	population_graph = get_node("UI/GraphNode")
+	# The population graph (found in _setup_layout, before it moved into the right-hand column)
 	
 	if organism_container == null:
 		print("Error: Could not find OrganismContainer")
@@ -173,6 +175,15 @@ func _setup_keyboard() -> void:
 	var controls: Array[Control] = [spawn_button, pause_button, speed_button, mode_option, mutation_slider,
 			food_slider, space_slider, habitat_option, hawks_check, labels_check, allele_graph.locus_option()]
 	keyboard.setup(controls, inspector, pause_button)
+
+
+## Small frames (a short iframe, a phone): keep text readable, shrink the arena, scroll the panels.
+func _setup_layout() -> void:
+	layout = ResponsiveLayout.new()
+	layout.name = "ResponsiveLayout"
+	add_child(layout)
+	population_graph = $UI/GraphNode
+	layout.setup($UI, allele_graph, $UI/ControlPanel, population_graph, $Camera2D)
 
 func _on_organism_died(organism: Organism):
 	population_count -= 1
